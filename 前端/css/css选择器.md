@@ -49,3 +49,7 @@
 
 * 伪元素`::` 伪选择器用于表示无法用 HTML 语义表达的实体。
 ![image](https://user-images.githubusercontent.com/51253421/118909994-69e6ee00-b956-11eb-9299-152d895a8f1a.png)
+
+<h3>Tips:</3>
+* 1.`.A.B(中间无空格)`与`.A .B(中间有空格)`的区别？
+前者是选中class中即有A又有B的class元素，例如`class="A B"`,后者是选中`class="A"`下面的所有`class="B"`
