@@ -19,9 +19,10 @@ Vue的作者，尤雨溪，在创作了Vue的同时，还创作了Vue Router、V
 
 #### 2.Vue创建工具 @vue/cli
 安装命令:`yarn global add @vue/cli` || `npm install -g @vue/cli`,安装完成后，新建目录，使用`vue create xxx(项目名)`创建项目，或者使用
-`yarn create .`在当前目录创建项目,如果在git中出现，上下键无法选择的情况，那么使用`winpty vue.cmd create xxx`命令。配置选择如下：
+`vue create .`在当前目录创建项目,如果在git中出现，上下键无法选择的情况，那么使用`winpty vue.cmd create xxx`命令。配置选择如下：
 
 ![image](https://user-images.githubusercontent.com/51253421/123984987-adbe2000-d9f7-11eb-8c53-cbba362b3d4c.png)
+
 命令执行完成后，进入目录，运行`yarn server`开启`webpack-dev-server`。
 
 

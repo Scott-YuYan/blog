@@ -225,3 +225,5 @@ keyAlias 按键别名enter,pageUp,pageDown等，<a href="https://cn.vuejs.org/v2
  `<ChildComponent :money="total" v-on:update:money = "total = $event"/>` 是Vue中常见的场景(自己不直接修改，而是通过通知父组件修改属性)
  这种写法可以简写为：
  ` <ChildComponent :money.sync="total"/>`
+ 
+ ##### 3.ant-design-vue用法
