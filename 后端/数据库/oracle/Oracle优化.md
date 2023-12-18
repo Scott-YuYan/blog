@@ -46,7 +46,7 @@ AND    JOB = ‘MANAGER’;
 
 当执行每条SQL语句时,ORACLE内部执行了许多工作： 解析SQL语句 >估算索引的利用率 >绑定变量 >读数据块等等由此可见,减少访问数据库的次数 ,就能实际上减少ORACLE工作量。
 
-4.使用Truncat而非Delete
+4.使用Truncate而非Delete
 
 Delete表中记录的时候，Oracle会在Rollback段中保存删除信息以备恢复。Truncat删除表中记录的时候不保管删除信息，不能恢复。因此Truncat删除记录比Delete快，而且占用资源少。
 删除表中记录的时候，如果不需要恢复的情况之下应该尽量使用Truncat而不是DeleteTruncat仅适用于删除全表的记录。
@@ -206,9 +206,9 @@ SELECT …  FROM USER_TAB WHERE TO_NUMBER(USER_TYPE)=123;
 
 SELECT …  FROM USER_TAB WHERE TO_NUMBER(USER_TYPE)=123;
 
-19.优化GROUPBY
+19.优化GROUP BY
 
-  提高GROUPBY语句的效率，可以通过将不需要的记录在GROUPBY之前过滤掉。
+  提高GROUP BY语句的效率，可以通过将不需要的记录在GROUPBY之前过滤掉。
 
   // 低效
   SELECT JOBAVGSAL FROM EMP GROUP BY JOB HAVING JOB = PRESIDENT OR JOB = MANAGER
