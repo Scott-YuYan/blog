@@ -1,7 +1,7 @@
 
  #####  方法的重写要满足：三同一大一小,三同：方法名相同，返回值类型，形参相同,一大：访问权限大于等于重写前，一小：抛出异常范围小于等于重写前。
  
- ##### Java8之后，方法跟抽象类的区别？
+ ##### Java8之后，接口跟抽象类的区别？
   * Java8之后，接口中可以有默认方法(default)，静态方法(static)，但是不能写构造方法，而抽象类则可以有构造方法，说明构造方法是参与类的实例化过程的。
   * 抽象类可以有自己的成员变量，并且可以通过非抽象方法进行改变，而接口中的变量只能是 public static final的，不能被外部修改。
   * 接口可以多继承、抽象类只能单继承。
@@ -9,6 +9,19 @@
  ##### public protected default private 区别
  
  <img width="643" alt="image" src="https://github.com/Scott-YuYan/blog/assets/51253421/dad1dcbf-0d8d-4e5a-9c53-4f209ef31dc9">
+ 
+ 
+ ##### Java OOP的概念
+ 
+ 面向对象编程（Object-Oriented Programming，OOP）是一种程序设计范式，它以对象为中心，通过封装、继承和多态等特性来组织代码。在Java中，OOP是一种核心编程思想，下面是一些关键概念：
+ 
+ 类和对象：类是对象的模板，描述了对象的属性和行为；对象是类的实例，具体化了类的属性和行为。
+ 
+ 封装：封装是指将对象的状态（属性）和行为（方法）作为一个整体来处理，隐藏内部细节，只暴露必要的接口。
+ 
+ 继承：继承允许一个类（子类）基于另一个类（父类）的定义来构建，子类可以继承父类的属性和方法，并且可以添加新的属性和方法。
+ 
+ 多态：多态性允许不同类的对象对同一消息作出响应，即不同对象可以对相同的消息做出不同的响应。
  
  
  ##### HTTPS是如何保证传输安全的？
@@ -328,6 +341,19 @@ Leaf - 美团点评分布式ID生成系统
  Executors.newSingleThreadScheduledExecutor：创建一个单线程的可以执行延迟任务的线程池；
  Executors.newWorkStealingPool：创建一个抢占式执行的线程池（任务执行顺序不确定）【JDK 1.8 添加】。
  ThreadPoolExecutor：最原始的创建线程池的方式，它包含了 7 个参数可供设置，推荐使用。
+ 
+
+##### 操作系统中的进程有哪些状态？
+
+新建（New）：当一个进程被创建但尚未开始执行时，处于新建状态。在这个阶段，操作系统正在为进程分配必要的资源。
+
+就绪（Ready）：进程已经准备好运行，等待系统分配处理器资源来执行。在多道程序设计中，可能有多个就绪状态的进程等待执行。
+
+运行（Running）：进程正在 CPU 上执行指令，处于运行状态。在单核处理器中，同时只能有一个进程处于运行状态；在多核处理器中，可能有多个进程同时处于运行状态。
+
+阻塞（Blocked）：进程由于某种原因（例如等待 I/O 操作完成、等待某个事件发生）而暂时无法继续执行，进入阻塞状态。一旦满足了条件，进程就会从阻塞状态转为就绪状态。
+
+终止（Terminated）：进程执行完毕或者出现错误被终止后，处于终止状态。在终止状态下的进程会被系统回收资源，并从进程表中移除。
 
 
 ##### Java线程有哪些状态？
@@ -343,7 +369,25 @@ BLOCKED
 在运行态中的线程进入 synchronized 同步块或者同步方法时，如果获取锁失败，则会进入到 BLOCKED 状态。当获取到锁后，会从 BLOCKED 状态恢复到就绪状态。
 
 WAITING,TIMED_WAITING
-运行中的线程还会进入等待状态，这两个等待一个是有超时时间的等待，例如调用 Object.wait、Thread.join 等；另外一个是无超时的等待，例如调用 Thread.join 或者 Locksupport.park等。这两种等待都可以通过 notify 或 unpark 结束等待状态并恢复到就绪状态。
+WAITING 状态：
+
+当线程调用 Object 类的 wait() 方法时，线程会进入 WAITING 状态。在这种状态下，线程会一直等待，直到其他线程调用 notify() 或 notifyAll() 方法来唤醒它。
+除了显式地调用 wait() 方法外，线程还可能由于其他原因（如 LockSupport.park()）而进入 WAITING 状态。
+TIMED_WAITING 状态：
+
+当线程调用带有超时参数的方法，如 Thread.sleep(long millis)、Object.wait(long timeout)、Thread.join(long millis) 等时，线程会进入 TIMED_WAITING 状态。
+在 TIMED_WAITING 状态下，线程会等待指定的时间，如果在超时时间内条件仍未满足，线程会自动恢复到就绪状态。
+线程也可能由于其他原因（如 LockSupport.parkNanos()、LockSupport.parkUntil()）而进入 TIMED_WAITING 状态。
+
+##### 线程池有哪些状态
+
+RUNNING（运行）：线程池处于 RUNNING 状态时，可以接受新任务，并处理阻塞队列中的任务。当且仅当线程池处于 RUNNING 状态时，才能接受新任务。
+
+SHUTDOWN（关闭）：线程池进入 SHUTDOWN 状态后，不再接受新任务，但会继续执行阻塞队列中的任务。可以调用线程池的 shutdown() 方法将线程池转换为 SHUTDOWN 状态。
+
+STOP（停止）：线程池进入 STOP 状态后，不再接受新任务，不再执行阻塞队列中的任务，并尝试中断正在执行的任务。可以调用线程池的 shutdownNow() 方法将线程池转换为 STOP 状态。
+
+TERMINATED（终止）：线程池进入 TERMINATED 状态后，所有的任务都已经完成，线程池已经关闭。可以通过线程池的 isTerminated() 方法来判断线程池是否已经终止。
 
 
 ##### Thread.run()方法跟Thread.start()方法区别
@@ -807,7 +851,7 @@ NESTED：如果当前方法正在一个事务中运行，则在该事务的嵌�
  
  浮点型：float(4) double(8)
  
- 布尔类型：boolean
+ 布尔类型：boolean(1)
  
  ##### Java的继承、多态和封装
  
@@ -817,10 +861,142 @@ NESTED：如果当前方法正在一个事务中运行，则在该事务的嵌�
  
  多态（Polymorphism）：多态是指同一类型的对象在不同的情况下表现出不同的行为。多态可以通过继承和接口实现。通过多态，可以通过父类或接口类型引用子类或实现类的对象，并根据实际的对象类型调用相应的方法。这样可以实现代码的通用性和灵活性，使得程序更易于扩展和维护。
  
+ ##### synchronized 有多少种锁
+       
+对象锁（普通锁）：synchronized关键字可以用于修饰实例方法或代码块，以获取对象级别的锁。当一个线程获得了对象的锁后，其他线程必须等待该线程释放锁才能访问该对象的同步代码块或方法。
+
+类锁（静态锁）：synchronized关键字也可以用于修饰静态方法或代码块，以获取类级别的锁。类级别的锁对于整个类的所有实例都起作用，同一时刻只能有一个线程持有该类的锁。
+
+锁对象：除了使用synchronized修饰方法或代码块外，还可以使用自定义的对象作为锁。通过使用synchronized关键字加锁指定的对象，可以实现更细粒度的控制，不同的线程可以独立地获取不同的锁。
+
+ReentrantLock：ReentrantLock是Java提供的可重入锁（Reentrant Lock）实现。相比于synchronized关键字，ReentrantLock提供了更多的灵活性和功能，例如支持公平锁和非公平锁、可中断的获取锁操作、超时获取锁等。
+
+##### 对称加密和非对称加密
+
+对称加密（Symmetric Encryption）使用同一个密钥进行加密和解密。发送方和接收方必须共享相同的密钥。在加密过程中，原始数据通过应用特定算法和密钥进行转换，生成加密后的数据。接收方在收到加密数据后，使用相同的密钥和算法进行解密，还原出原始数据。
+
+优点：
+
+加密和解密速度快，适用于大量数据的加密。
+算法简单，实现容易。
+缺点：
+
+密钥的安全性需要保证，因为只有一个密钥，一旦泄露，所有的数据都可能被破解。
+密钥分发和管理较为困难，特别是在分布式系统中。
+非对称加密（Asymmetric Encryption），也称为公钥加密，使用一对密钥：公钥（Public Key）和私钥（Private Key）。发送方使用接收方的公钥对数据进行加密，而接收方使用自己的私钥进行解密。
+
+优点：
+
+安全性高，私钥不需要与他人共享。
+密钥交换方便，不需要事先共享密钥。
+缺点：
+
+加密和解密速度相比对称加密较慢。
+适用于小数据量的加密，不适合大规模数据加密。
+
+
+##### Java基本类型与引用类型的==与equals方法
+== 对于基本类型来说是值比较，对于引用类型来说是比较的是引用；
+而equals 默认情况下是引用比较，只是很多类重写了equals 方法，比如String、Integer 等把它变成了值比较，所以一般情况下equals 比较的是值是否相等。
+
+
+##### SimpleDateFormat是线程安全的么？
+
+在Java中，SimpleDateFormat类是线程不安全的。这意味着在多线程环境下，同时对同一个SimpleDateFormat对象进行操作可能会导致不可预测的结果，甚至可能引发异常。
+
+原因在于SimpleDateFormat内部维护了一个Calendar实例来处理日期和时间的格式化和解析。由于Calendar本身也是可变的，而SimpleDateFormat没有进行充分的同步措施，因此可能导致线程安全问题。
+
+为了在多线程环境下安全地使用SimpleDateFormat，可以采取以下两种方法之一：
+
+在每个线程中使用单独的SimpleDateFormat实例，保证线程间互相独立，不共享对象。
+使用线程安全的日期时间处理类，比如java.time.format.DateTimeFormatter，它是线程安全的，推荐在新的代码中使用。
 
 
 
+##### Java中有哪几种方式来创建线程任务
 
+1. 通过继承 Thread 类，并重写它的 run 方法
+
+class MyThread extends Thread {
+    public void run() {
+        // 线程任务代码
+    }
+}
+
+MyThread thread = new MyThread();
+thread.start();
+
+2. 实现 Runnable 接口
+
+class MyRunnable implements Runnable {
+    public void run() {
+        // 线程任务代码
+    }
+}
+
+MyRunnable runnable = new MyRunnable();
+Thread thread = new Thread(runnable);
+thread.start();
+
+3.实现 Callable 接口，并结合 Future 实现
+
+Callable<Integer> task = new Callable<Integer>() {
+    public Integer call() throws Exception {
+        // 线程任务代码
+        return 42;
+    }
+};
+
+ExecutorService executor = Executors.newSingleThreadExecutor();
+Future<Integer> future = executor.submit(task);
+Integer result = future.get(); // 获取任务结果
+executor.shutdown();
+
+4.使用Executor框架
+
+ExecutorService executor = Executors.newFixedThreadPool(5); // 创建一个固定大小的线程池
+executor.execute(new Runnable() {
+    public void run() {
+        // 线程任务代码
+    }
+});
+executor.shutdown(); // 关闭线程池
+
+
+##### 为什么不建议使用Executors创建线程池
+      
+1. 固定的线程池大小：Executors 提供的工厂方法创建的线程池通常具有固定的线程池大小，例如 newFixedThreadPool() 方法创建的线程池固定大小为指定的线程数。这意味着如果存在大量的任务提交，可能导致线程池中的线程过多，从而消耗过多的系统资源。
+
+2. 无界队列：使用 Executors 创建的线程池通常使用无界队列来保存等待执行的任务。当任务提交速度远远快于任务执行速度时，无界队列可能会导致大量的任务积压，最终导致内存溢出或系统性能下降。
+
+3. 缺乏对线程池参数的精细控制：Executors 提供的工厂方法通常缺乏对线程池各个参数的精细控制，例如核心线程数、最大线程数、线程存活时间等。在某些场景下，需要根据实际业务需求来精细调整线程池的参数。
+
+##### 线程与进程的区别
+
+1.定义：
+
+进程是操作系统分配资源的基本单位，每个进程都有独立的内存空间和系统资源。一个进程可以包含多个线程。
+线程是进程中的执行单元，是 CPU 调度的基本单位。一个进程至少包含一个线程。
+
+2.资源占用：
+
+进程间相互独立，每个进程拥有独立的内存空间，需要独立分配系统资源。进程间通信比较复杂，通常需要通过进程间通信机制来实现。
+线程共享所属进程的内存空间和资源，同一进程中的线程之间可以直接进行通信，共享数据更方便。
+
+3.切换开销：
+
+由于进程拥有独立的内存空间，进程切换时需要保存和恢复整个进程的上下文，切换开销较大。
+线程切换时只需保存和恢复线程的上下文，切换开销较小，线程切换更为高效。
+
+4.并发性：
+
+多进程之间可以并发执行，提高了系统的并发能力，但进程间通信的开销较大。
+多线程共享同一进程的资源，可以更方便地实现并发操作，且线程间通信更为简单。
+
+5.稳定性：
+
+由于进程间相互独立，一个进程的崩溃不会影响其他进程的稳定性。
+线程间共享同一进程的资源，一个线程的异常或崩溃可能会影响其他线程的稳定性。
 
 
 

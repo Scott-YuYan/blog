@@ -87,6 +87,112 @@ Spring 框架是一个轻量级的、开源的框架，提供了大量的功能�
  
  幻读（Phantom Read）：幻读指的是在同一个事务中，多次执行同一个查询，但得到的结果集不一致。幻读与不可重复读的区别在于，幻读是由于另一个事务插入或删除数据导致的，而不是修改数据。
  
+ 
+ ##### SpringAOP示例：
+ 
+ 1.添加依赖
+ 
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-aop</artifactId>
+    </dependency>
+ 
+ 2.创建切面类
+ 
+    @Aspect
+    public class MyAspect {
+ 
+        @Before("execution(* com.example.myapp.service.*.*(..))")
+        public void beforeServiceMethodExecution() {
+            // 执行前置通知的逻辑
+        }
+    }
+    
+    或者
+    
+    @Aspect
+    @Component
+    public class LogAspect {
+       
+        private static Logger logger = LoggerFactory.getLogger(LogAspect.class);
+    
+        @Pointcut("execution(public * com.example.service.HelloService.*(..))")
+        public void log() {
+       
+       }
+    
+        @Before("log()")
+        public void doBefore(JoinPoint joinPoint) {
+            logger.info("method {} start", joinPoint.getSignature().getName());
+        }
+    
+        @AfterReturning(returning = "result", pointcut = "log()")
+        public void doAfterReturning(Object result) {
+            logger.info("method return value: {}", result);
+            logger.info("method end");
+        }
+    
+        @AfterThrowing(throwing = "ex", pointcut = "log()")
+        public void doAfterThrowing(Throwable ex) {
+            logger.error("method throw exception: {}", ex.getMessage());
+        }
+    }
+    
+  3.配置 AOP 启用： 在 Spring Boot 的配置类中，使用@EnableAspectJAutoProxy注解启用 AOP 功能。
+  
+     import org.springframework.context.annotation.Configuration;
+     import org.springframework.context.annotation.EnableAspectJAutoProxy;
+  
+     @Configuration
+     @EnableAspectJAutoProxy
+     public class AppConfig {
+         // 配置其他 Bean 和应用程序设置
+     }
+     
+     
+     
+  Aspect：切面，由一系列切点、增强和引入组成的模块对象，可定义优先级，从而影响增强和引入的执行顺序。事务管理（Transaction management）在java企业应用中就是一个很好的切面样例。所以他不是一个被代理的对象。 
+   
+    
+   Join point：接入点，程序执行期的一个点，例如方法执行、类初始化、异常处理。 在Spring AOP中，接入点始终表示方法执行。
+   Advice：增强，切面在特定接入点的执行动作，包括 “around,” “before” and "after"等多种类型。包含Spring在内的许多AOP框架，通常会使用拦截器来实现增强，围绕着接入点维护着一个拦截器链。 
+   
+    
+   Pointcut：切点，用来匹配特定接入点的谓词（表达式），增强将会与切点表达式产生关联，并运行在任何切点匹配到的接入点上。通过切点表达式匹配接入点是AOP的核心，Spring默认使用AspectJ的切点表达式。 
+   
+    
+   Introduction：引入，为某个type声明额外的方法和字段。Spring AOP允许你引入任何接口以及它的默认实现到被增强对象上。 
+   
+    
+   Target object：目标对象，被一个或多个切面增强的对象。也叫作被增强对象。既然Spring AOP使用运行时代理（runtime proxies），那么目标对象就总是代理对象。 
+   
+    
+   AOP proxy：AOP代理，为了实现切面功能一个对象会被AOP框架创建出来。在Spring框架中AOP代理的默认方式是：有接口，就使用基于接口的JDK动态代理，否则使用基于类的CGLIB动态代理。但是我们可以通过设置proxy-target-class="true"，完全使用CGLIB动态代理。 
+   
+    
+   Weaving：织入，将一个或多个切面与类或对象链接在一起创建一个被增强对象。织入能发生在编译时 （compile time ）(使用AspectJ编译器)，加载时（load time），或运行时（runtime） 。Spring AOP默认就是运行时织入，可以通过枚举AdviceMode来设置。
+ 
+  ##### Spring AOP支持以下几种通知类型：
+        
+  前置通知（Before advice）：在目标方法执行前执行的通知。
+  后置通知（After returning advice）：在目标方法成功执行后执行的通知，若发生异常则不通知。
+  环绕通知（Around advice）：包围目标方法执行的通知，在目标方法执行前后都可以执行自定义操作。
+  后置异常通知（After throwing advice）：在目标方法抛出异常后执行的通知。
+  后置最终通知（After advice）：在目标方法执行后无论是否发生异常都会执行的通知。
+ 
   ##### Spring 注解 @After,@Around,@Before 的执行顺序是？
   
   @Around→@Before→@Around→@After执行 ProceedingJoinPoint.proceed() 之后的操作→@AfterRunning(如果有异常→@AfterThrowing)
+  
+  
+  ##### 在Spring MVC中，拦截器需要实现HandlerInterceptor接口，并且需要在配置文件中进行注册和配置。
+        
+   HandlerInterceptor接口定义了三个方法，分别是：
+   
+   preHandle：在请求处理之前进行调用，返回一个布尔值。可以通过返回true或false来决定是否继续执行请求。
+   
+   postHandle：在请求处理之后（Controller方法调用之后）但在视图渲染之前调用，可以对ModelAndView进行操作。
+   
+   afterCompletion：在整个请求处理完毕后进行调用，即在视图渲染完毕后进行调用，主要用于资源清理工作。
+   
+   通过实现HandlerInterceptor接口，并重写这三个方法，可以自定义拦截器的行为，并在配置文件中进行注册和配置，从而实现对请求的拦截和处理。
