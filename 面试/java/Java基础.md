@@ -812,36 +812,7 @@ public JtaTransactionManager transactionManager() {
    这个问题出现的概率极其小，因为Mysql5之后默认情况下是使用innodb存储引擎了。
    
    但如果配置错误或者是历史项目，发现事务怎么配都不生效的时候，记得看看存储引擎本身是否支持事务。
-   
-12、Spring支持了7种传播机制，分别为：
-
-下面是 Spring 事务的传播机制：
-
-```
-REQUIRED（默认值）：如果当前方法已经运行在一个事务中，则加入该事务；否则新建一个事务，并在该方法执行期间一直使用该事务。
-SUPPORTS：如果当前方法正在一个事务中运行，则加入该事务；否则以非事务性的方式继续运行。
-MANDATORY：如果当前方法正在一个事务中运行，则加入该事务；否则抛出异常。
-REQUIRES_NEW：无论当前方法是否正在一个事务中运行，都将新开一个事务，并在该方法执行期间只使用该事务。
-NOT_SUPPORTED：以非事务性的方式运行，并挂起任何可能存在的事务。
-NEVER：以非事务性的方式运行，并抛出异常，如果当前方法正在一个事务中运行。
-NESTED：如果当前方法正在一个事务中运行，则在该事务的嵌套事务中执行；否则则与 REQUIRED 行为相同。
-需要注意的是，在使用嵌套事务（NESTED）时，如果外层事务回滚，则内层嵌套事务也会回滚；而内层事务的回滚不会影响外层事务的状态。
-```
-上面不支持事务的传播机制为：PROPAGATION_SUPPORTS，PROPAGATION_NOT_SUPPORTED，PROPAGATION_NEVER。如果配置了这三种传播方式的话，在发生异常的时候，事务是不会回滚的。
-
-
-嵌套事务：嵌套事务
-     
-上面是我想同时回滚UserService与UserService1。但是也会有这种场景只想回滚UserService1中报错的数据库操作，不影响主逻辑UserService中的数据落库。
-
-有两种方式可以实现上述逻辑：
-
-1.直接在UserService1内的整个方法用try/catch包住
-
-2.在UserService1使用Propagation.REQUIRES_NEW传播机制
-```
-    @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRES_NEW)
-```
+  
  
  ##### Java基本数据类型
  
@@ -997,6 +968,38 @@ executor.shutdown(); // 关闭线程池
 
 由于进程间相互独立，一个进程的崩溃不会影响其他进程的稳定性。
 线程间共享同一进程的资源，一个线程的异常或崩溃可能会影响其他线程的稳定性。
+
+##### JDK动态代理与CGLib动态代理
+
+JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式。CGLib动态代理，采用底层的字节码技术，在运行时创建子类代理的实例 - 目标对象不存在接口时，采用这种方式。
+
+##### 使用＠Autowired注解时，如果一个类可以有多种类型，如何解决
+      
+1.使用@Qualifier注解：可以和@Autowired一起使用，用于指定具体要注入的bean名称。在@Autowired注解中使用@Qualifier注解，指定要注入的bean的名称，这样就可以明确指定要注入的bean实例。
+```
+@Autowired
+@Qualifier("beanName")
+private BeanClass bean;
+```
+
+2.使用@Primary注解：可以在多个bean实例中使用@Primary注解，用于指定首选的bean。当存在多个同类型的bean实例时，被标记为@Primary的bean将被优先选择进行注入。
+```
+@Primary
+@Bean
+public BeanClass primaryBean() {
+   // bean的定义
+}
+```
+
+3.使用List或Map集合注入：可以将所有同类型的bean实例注入到一个List或Map集合中。Spring会自动将所有符合类型的bean注入到集合中，然后可以通过遍历集合来使用不同的bean实例。
+```
+@Autowired
+private List<BeanClass> beanList;
+
+@Autowired
+private Map<String, BeanClass> beanMap;
+```
+
 
 
 

@@ -196,3 +196,51 @@ Spring 框架是一个轻量级的、开源的框架，提供了大量的功能�
    afterCompletion：在整个请求处理完毕后进行调用，即在视图渲染完毕后进行调用，主要用于资源清理工作。
    
    通过实现HandlerInterceptor接口，并重写这三个方法，可以自定义拦截器的行为，并在配置文件中进行注册和配置，从而实现对请求的拦截和处理。
+   
+   ##### Spring支持了7种传播机制，分别为：
+   
+   下面是 Spring 事务的传播机制：
+   
+   ```
+   REQUIRED（默认值）：如果当前方法已经运行在一个事务中，则加入该事务；否则新建一个事务，并在该方法执行期间一直使用该事务。
+   SUPPORTS：如果当前方法正在一个事务中运行，则加入该事务；否则以非事务性的方式继续运行。
+   MANDATORY：如果当前方法正在一个事务中运行，则加入该事务；否则抛出异常。
+   REQUIRES_NEW：无论当前方法是否正在一个事务中运行，都将新开一个事务，并在该方法执行期间只使用该事务。
+   NOT_SUPPORTED：以非事务性的方式运行，并挂起任何可能存在的事务。
+   NEVER：以非事务性的方式运行，并抛出异常，如果当前方法正在一个事务中运行。
+   NESTED：如果当前方法正在一个事务中运行，则在该事务的嵌套事务中执行；否则则与 REQUIRED 行为相同。
+   需要注意的是，在使用嵌套事务（NESTED）时，如果外层事务回滚，则内层嵌套事务也会回滚；而内层事务的回滚不会影响外层事务的状态。
+   ```
+   上面不支持事务的传播机制为：PROPAGATION_SUPPORTS，PROPAGATION_NOT_SUPPORTED，PROPAGATION_NEVER。如果配置了这三种传播方式的话，在发生异常的时候，事务是不会回滚的。
+   
+   
+   嵌套事务：嵌套事务
+        
+   上面是我想同时回滚UserService与UserService1。但是也会有这种场景只想回滚UserService1中报错的数据库操作，不影响主逻辑UserService中的数据落库。
+   
+   有两种方式可以实现上述逻辑：
+   
+   1.直接在UserService1内的整个方法用try/catch包住
+   
+   2.在UserService1使用Propagation.REQUIRES_NEW传播机制
+   ```
+       @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRES_NEW)
+   ```
+
+##### Spring bean的线程安全问题
+
+在Spring框架中，通常情况下Spring的Bean是单例模式的，也就是说默认情况下Spring容器中的Bean都是共享的。因此，如果一个Bean的方法中存在对共享资源的修改操作，就可能存在线程安全问题。
+
+为了解决这个问题，可以采取以下几种方式：
+
+避免在Bean中定义可变的状态：尽量避免在Bean中定义可变的状态，或者将可变的状态转移到方法的局部变量中。
+使用局部变量：尽量使用方法中的局部变量，而不是实例变量，避免多个线程共享状态。
+使用ThreadLocal：如果确实需要在Bean中保存状态，可以考虑使用ThreadLocal来保证每个线程都有自己独立的状态副本。
+使用同步控制：在必要的时候可以使用synchronized关键字或者Lock来进行同步控制，确保多个线程访问共享资源的安全性。
+
+##### 关于BeanFactory和FactoryBean
+
+BeanFactory是Spring框架中定义的最基本的接口，它是一个大型工厂类，负责管理bean的配置、创建和维护。BeanFactory的主要功能包括：实例化bean、配置bean、装配bean之间的依赖关系、提供bean的生命周期管理等。在使用时，可以通过ApplicationContext接口来获取BeanFactory实例，ApplicationContext是BeanFactory的子接口，提供更多功能和更方便的使用方式。
+
+FactoryBean是一个特殊的bean，实现了FactoryBean接口的bean在Spring容器中会被当作工厂bean处理。FactoryBean接口定义了一个方法getObject()，用于返回一个对象实例，这个对象实例将会被纳入Spring容器的管理范围。FactoryBean的作用是提供一种更加灵活的方式来配置和创建bean，通过FactoryBean可以实现复杂的bean的创建逻辑，例如在获取bean实例前进行一些初始化操作，或者返回不同的实例对象。常见的应用场景包括数据库连接池、缓存管理等。
+
