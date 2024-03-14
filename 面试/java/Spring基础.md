@@ -244,3 +244,271 @@ BeanFactory是Spring框架中定义的最基本的接口，它是一个大型工
 
 FactoryBean是一个特殊的bean，实现了FactoryBean接口的bean在Spring容器中会被当作工厂bean处理。FactoryBean接口定义了一个方法getObject()，用于返回一个对象实例，这个对象实例将会被纳入Spring容器的管理范围。FactoryBean的作用是提供一种更加灵活的方式来配置和创建bean，通过FactoryBean可以实现复杂的bean的创建逻辑，例如在获取bean实例前进行一些初始化操作，或者返回不同的实例对象。常见的应用场景包括数据库连接池、缓存管理等。
 
+##### Spring Cloud和Dubbo有什么区别？
+
+生态系统和社区支持：
+
+Spring Cloud是基于Spring生态系统构建的，拥有非常庞大的社区支持和活跃的开发者社区。它集成了Spring框架的各种强大功能，并提供了丰富的解决方案和组件，如服务注册与发现、配置管理、负载均衡等。
+Dubbo是由阿里巴巴开源的分布式服务框架，它也有一定的社区支持，但相对于Spring Cloud来说相对较小。
+服务注册与发现：
+
+Spring Cloud使用Eureka作为默认的服务注册与发现组件，它提供了高可用性、可水平扩展的服务注册与发现能力。
+Dubbo使用Zookeeper或Nacos作为服务注册中心，同样可以实现服务的注册与发现。
+通信协议：
+
+Spring Cloud支持多种通信协议，如HTTP、REST等，可以基于HTTP协议进行服务之间的通信。
+Dubbo使用RPC（远程过程调用）作为通信协议，通过高性能的序列化技术实现跨进程的方法调用。
+开发模型：
+
+Spring Cloud使用Spring Boot作为基础，通过注解驱动的方式简化了微服务的开发和部署。
+Dubbo更加侧重于服务治理和高性能，提供了更多底层的细粒度配置和扩展点。
+需要注意的是，Spring Cloud和Dubbo并不是互斥的选择，它们可以结合使用。在某些场景下，可以利用它们各自的优势来构建更强大和灵活的分布式系统。
+
+
+##### 服务雪崩 服务降级 服务熔断 服务限流
+      
+服务雪崩（Service Avalanche）：
+当一个服务出现故障或不可用时，其他依赖该服务的服务也会受到影响，导致整个系统出现大规模的故障。这种现象被称为服务雪崩。
+
+为了避免服务雪崩，可以采取以下措施：
+引入服务注册与发现机制，及时发现并移除不可用的服务。
+通过设置合理的超时时间和重试策略来处理服务调用的超时或错误。
+采用负载均衡策略，将请求分散到多个实例上，减少单点故障的影响。
+
+服务降级（Service Degradation）：
+当系统负载过高或某个服务出现故障时，为了保证核心功能的正常运行，可以主动暂时关闭一些非核心或耗时较长的功能，以减轻系统的压力。这就是服务降级。
+
+通常可以使用以下方法进行服务降级：
+返回默认值或静态数据，而不是真实的结果。
+返回缓存的数据。
+返回预设的错误码或异常。
+
+服务熔断（Circuit Breaking）：
+服务熔断是一种防止故障蔓延的机制。当某个服务的错误率或响应时间超过一定阈值时，可以将该服务的请求熔断，不再向该服务发送请求，而是直接返回错误响应。这种方式可以避免连锁式的故障扩散，并且能够快速恢复。一般来说，服务熔断的实现需要结合监控和自动恢复机制。
+
+服务限流（Rate Limiting）：
+服务限流是一种控制系统访问频率的机制，用于保护系统免受过多请求的影响。通过限制每个服务的最大并发数或请求频率，可以防止系统被过多的请求压垮。常见的限流算法有漏桶算法和令牌桶算法
+
+##### Spring 事务（注解 @Transactional）失效的12种场景及代码示例
+
+* 1.事务管理器未被正确配置
+如果没有正确配置事务管理器，则 @Transactional 注解将不起作用。
+
+  Java 配置事务管理器有几种方式以及对应的代码示例：
+  
+  1.1 基于 XML 配置
+  在基于 XML 配置的方式中，需要在 Spring 配置文件中定义一个 DataSource，然后配置一个 PlatformTransactionManager 实例并将其绑定到 DataSource 上。
+  
+  下面是一个示例代码：
+  
+  ```
+  <!-- 配置数据源 -->
+  <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+      <property name="driverClassName" value="${jdbc.driver}" />
+      <property name="url" value="${jdbc.url}" />
+      <property name="username" value="${jdbc.username}" />
+      <property name="password" value="${jdbc.password}" />
+  </bean>
+  
+  <!-- 配置事务管理器 -->
+  <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+      <property name="dataSource" ref="dataSource" />
+  </bean>
+  ```
+
+1.2 基于注解配置
+  在基于注解配置的方式中，需要在配置类中定义一个 DataSource，然后使用 @EnableTransactionManagement 注解开启事务管理，并通过 @Bean 注解配置一个 PlatformTransactionManager 实例并将其绑定到 DataSource 上。
+  
+  下面是一个示例代码：
+  
+  ```
+@Configuration
+@EnableTransactionManagement
+public class AppConfig {
+
+    @Value("${jdbc.driver}")
+    private String driver;
+
+    @Value("${jdbc.url}")
+    private String url;
+
+    @Value("${jdbc.username}")
+    private String username;
+
+    @Value("${jdbc.password}")
+    private String password;
+
+    // 配置数据源
+    @Bean
+    public DataSource dataSource() {
+        BasicDataSource dataSource = new BasicDataSource();
+        dataSource.setDriverClassName(driver);
+        dataSource.setUrl(url);
+        dataSource.setUsername(username);
+        dataSource.setPassword(password);
+        return dataSource;
+    }
+
+    // 配置事务管理器
+    @Bean
+    public PlatformTransactionManager transactionManager() {
+        return new DataSourceTransactionManager(dataSource());
+    }
+}
+
+```
+需要注意的是，在使用基于注解配置的方式时，配置类中需要开启事务管理，否则事务将无法生效。可以通过在配置类上添加 @EnableTransactionManagement 注解来开启事务管理。
+
+
+2. 方法必须是 public 的
+Spring 只能拦截公共方法上的注解，因此必须确保使用 @Transactional 注解的方法是 public 的。
+
+3. 方法必须从另一个 bean 中调用才能工作
+在同一个 bean 中调用带有 @Transactional 注解的方法将不会触发事务，因为 Spring 无法通过 AOP 代理来拦截该调用。
+
+例如：
+
+```
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @SneakyThrows
+    public void creatUser(){
+        this.creatUser1();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRES_NEW)
+    public void creatUser1(){
+
+    }
+```
+并且createUser1方法上设置了事务传播策略为：REQUIRES_NEW，但是因为是内部直接调用，createUser1不能不代理处理，无法进行事务管理。
+解决方法：
+
+方式1：新建一个Service，将方法迁移过去，有点麻瓜。
+
+方式2：在当前类注入自己，调用createUser1时通过注入的userService调用
+```
+    @Autowired
+    UserService userService;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @SneakyThrows
+    public void creatUser(){
+        userService.creatUser1();
+    }
+```
+方式3：通过AopContext.currentProxy()获取代理对象，与方法2类似
+```
+    (UserService)(AopContext.currentProxy()).creatUser1()
+```
+
+4. 异常被吞噬
+如果在 @Transactional 注解标记的方法中抛出了异常，并且异常被捕获并处理了，那么事务可能不会被正确回滚。应该避免在带有 @Transactional 注解的方法中吞噬异常。
+
+示例代码：
+
+```
+@Transactional
+public void doSomething() {
+    try {
+        // Some code that throws an exception
+    } catch (Exception e) {
+        // Exception is caught and not rethrown, so transaction will not roll back
+    }
+}
+```
+
+
+5. 事务只对受检查的异常起作用
+默认情况下，@Transactional 注解只对受检查的异常回滚事务，而不对未受检查的异常（例如 IOException）回滚事务。因此，应该在方法上声明 throws Exception，以便将所有异常都视为受检查的异常。
+
+示例代码：
+```
+@Transactional(rollbackFor = Exception.class)
+public void doSomething() throws Exception {
+    // ...
+}
+```
+
+6. 被final、static关键字修饰的类或方法
+CGLIB是通过生成目标类子类的方式生成代理类的，被final、static修饰后，无法继承父类与父类的方法。
+
+示例代码：
+```
+@Transactional
+public final void doSomething() {
+    // ...
+}
+```
+
+7、
+将注解标注在接口方法上
+
+@Transactional是支持标注在方法与类上的。一旦标注在接口上，对应接口实现类的代理方式如果是CGLIB，将通过生成子类的方式生成目标类的代理，将无法解析到@Transactional，从而事务失效。
+
+  
+8、如果一个事务嵌套在另一个事务中，则内部事务可能会被忽略
+当嵌套使用事务时，必须注意事务传播属性和隔离级别。
+
+示例代码：
+
+```
+@Transactional(propagation = Propagation.REQUIRED)
+public void doSomething() {
+    // This will start a new transaction
+    doSomethingElse();
+}
+
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public void doSomethingElse() {
+    // This is a new, independent transaction
+}
+```
+
+9、不同的数据源之间的事务
+如果在应用程序中使用了多个数据源，则需要使用特殊的策略来管理跨数据源的事务。例如，可以使用 JTA 管理器来跨多个数据源进行事务管理。
+
+示例代码：
+
+```
+@Bean
+public JtaTransactionManager transactionManager() {
+    return new JtaTransactionManager();
+}
+```
+
+10、多线程场景
+
+事务信息是跟线程绑定的。
+
+因此在多线程环境下，事务的信息都是独立的，将会导致Spring在接管事务上出现差异。
+
+11、数据库本身不支持事务
+   
+   比如Mysql的Myisam存储引擎是不支持事务的，只有innodb存储引擎才支持。
+   
+   这个问题出现的概率极其小，因为Mysql5之后默认情况下是使用innodb存储引擎了。
+   
+   但如果配置错误或者是历史项目，发现事务怎么配都不生效的时候，记得看看存储引擎本身是否支持事务。
+  
+ 
+
+##### Spring MVC 系列之拦截器 Interceptor
+
+拦截器在 Spring MVC 中使用接口 HandlerInterceptor 表示，这个接口包含了三个方法：preHandle、postHandle、afterCompletion，
+三个方法具体的执行流程如下。
+
+preHandle：处理器执行之前执行，如果返回 false 将跳过处理器、拦截器 postHandle 方法、视图渲染等，直接执行拦截器 afterCompletion 方法。
+postHandle：处理器执行后，视图渲染前执行，如果处理器抛出异常，将跳过该方法直接执行拦截器 afterCompletion 方法。
+afterCompletion：视图渲染后执行，不管处理器是否抛出异常，该方法都将执行。
+
+那么拦截器的顺序是如何指定的呢？
+
+对于 xml 配置来说，Spring 将记录 bean 声明的顺序，先声明的拦截器将排在前面。
+对于注解配置来说，由于通过反射读取方法无法保证顺序，因此需要在方法上添加@Order注解指定 bean 的声明顺序。
+对应API配置来说，拦截器的顺序并非和添加顺序完全保持一致，为了控制先后顺序，需要自定义的拦截器实现Ordered接口。
+
+
+

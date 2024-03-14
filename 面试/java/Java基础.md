@@ -46,7 +46,7 @@
  1. 构造方法
  首先解释一下各个参数：
  
- ①corePoolSize：核心线程数
+ ①corePoolSize：核心线程数 - 线程中长期存活的线程数
 
   使用Runtime.getRuntime().availableProcessors()可以获取当前可用的处理器数量
  
@@ -156,6 +156,19 @@ public class ExecutorConfig {
 }
 ```
 
+
+##### 线程池的执行流程
+
+创建线程池：通过ThreadPoolExecutor类或Executors工厂类创建一个线程池，指定线程池的核心线程数、最大线程数、线程存活时间、任务队列等参数。
+
+提交任务：将任务（实现了Runnable或Callable接口的任务）提交给线程池执行，可以使用execute()方法或submit()方法提交任务。
+
+任务执行：线程池根据内部的线程管理策略，执行提交的任务。如果当前线程池中的线程数量小于核心线程数，则创建新的线程来执行任务；如果当前线程池中的线程数量已经达到核心线程数，并且任务队列未满，则将任务放入任务队列；如果任务队列已满，但是线程数未达到最大线程数，则创建新的线程来执行任务；如果线程池中的线程数已经达到最大线程数，则根据指定的拒绝策略来处理无法执行的任务。
+
+任务执行完成：任务执行完成后，线程池会将线程归还到线程池中以供下次使用。
+
+关闭线程池：当不再需要线程池时，需要调用shutdown()或shutdownNow()方法来关闭线程池，释放线程池所占用的资源。
+
 ##### 集群高并发情况下如何保证分布式唯一全局ID生成
 
 在复杂分布式系统中，往往需要对大量的数据和消息进行唯一标识
@@ -237,10 +250,18 @@ Leaf - 美团点评分布式ID生成系统
 好像都没有去进行序列化和反序列化, 因为我们都没有实现Serializable接口, 但一直正常运行.
 
 下面先给出结论:只要我们对内存中的对象进行持久化或网络传输, 这个时候都需要序列化和反序列化.
+
 理由:服务器与浏览器交互时真的没有用到Serializable接口吗? JSON格式实际上就是将一个对象转化为字符串, 所以服务器与浏览器交互时的数据格式其实是字符串
-实现Serializable接口就算了, 为什么还要显示指定serialVersionUID的值?如果不显示指定serialVersionUID, JVM在序列化时会根据属性自动生成一个serialVersionUID, 然后与属性一起序列化, 再进行持久化或网络传输. 在反序列化时, JVM会再根据属性自动生成一个新版serialVersionUID, 然后将这个新版serialVersionUID与序列化时生成的旧版serialVersionUID进行比较, 如果相同则反序列化成功, 否则报错.
+实现Serializable接口就算了, 为什么还要显示指定serialVersionUID的值?
+
+如果不显示指定serialVersionUID, JVM在序列化时会根据属性自动生成一个serialVersionUID, 然后与属性一起序列化,
+ 再进行持久化或网络传输. 在反序列化时, JVM会再根据属性自动生成一个新版serialVersionUID, 然后将这个新版serialVersionUID与序列化时生成的旧版serialVersionUID进行比较, 
+ 如果相同则反序列化成功, 否则报错.
+ 
 如果显示指定了serialVersionUID, JVM在序列化和反序列化时仍然都会生成一个serialVersionUID, 但值为我们显示指定的值, 这样在反序列化时新旧版本的serialVersionUID就一致了.
-在实际开发中, 不显示指定serialVersionUID的情况会导致什么问题? 如果我们的类写完后不再修改, 那当然不会有问题, 但这在实际开发中是不可能的, 我们的类会不断迭代, 一旦类被修改了, 那旧对象反序列化就会报错. 所以在实际开发中, 我们都会显示指定一个serialVersionUID, 值是多少无所谓, 只要不变就行.
+
+在实际开发中, 不显示指定serialVersionUID的情况会导致什么问题? 
+如果我们的类写完后不再修改, 那当然不会有问题, 但这在实际开发中是不可能的, 我们的类会不断迭代, 一旦类被修改了, 那旧对象反序列化就会报错. 所以在实际开发中, 我们都会显示指定一个serialVersionUID, 值是多少无所谓, 只要不变就行.
 
 ##### 线程池的创建方式
           
@@ -543,211 +564,7 @@ public class CountDownLatchExample {
 ```
 
 
-##### Spring 事务（注解 @Transactional）失效的12种场景及代码示例
 
-* 1.事务管理器未被正确配置
-如果没有正确配置事务管理器，则 @Transactional 注解将不起作用。
-
-  Java 配置事务管理器有几种方式以及对应的代码示例：
-  
-  1.1 基于 XML 配置
-  在基于 XML 配置的方式中，需要在 Spring 配置文件中定义一个 DataSource，然后配置一个 PlatformTransactionManager 实例并将其绑定到 DataSource 上。
-  
-  下面是一个示例代码：
-  
-  ```
-  <!-- 配置数据源 -->
-  <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
-      <property name="driverClassName" value="${jdbc.driver}" />
-      <property name="url" value="${jdbc.url}" />
-      <property name="username" value="${jdbc.username}" />
-      <property name="password" value="${jdbc.password}" />
-  </bean>
-  
-  <!-- 配置事务管理器 -->
-  <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
-      <property name="dataSource" ref="dataSource" />
-  </bean>
-  ```
-
-1.2 基于注解配置
-  在基于注解配置的方式中，需要在配置类中定义一个 DataSource，然后使用 @EnableTransactionManagement 注解开启事务管理，并通过 @Bean 注解配置一个 PlatformTransactionManager 实例并将其绑定到 DataSource 上。
-  
-  下面是一个示例代码：
-  
-  ```
-@Configuration
-@EnableTransactionManagement
-public class AppConfig {
-
-    @Value("${jdbc.driver}")
-    private String driver;
-
-    @Value("${jdbc.url}")
-    private String url;
-
-    @Value("${jdbc.username}")
-    private String username;
-
-    @Value("${jdbc.password}")
-    private String password;
-
-    // 配置数据源
-    @Bean
-    public DataSource dataSource() {
-        BasicDataSource dataSource = new BasicDataSource();
-        dataSource.setDriverClassName(driver);
-        dataSource.setUrl(url);
-        dataSource.setUsername(username);
-        dataSource.setPassword(password);
-        return dataSource;
-    }
-
-    // 配置事务管理器
-    @Bean
-    public PlatformTransactionManager transactionManager() {
-        return new DataSourceTransactionManager(dataSource());
-    }
-}
-
-```
-需要注意的是，在使用基于注解配置的方式时，配置类中需要开启事务管理，否则事务将无法生效。可以通过在配置类上添加 @EnableTransactionManagement 注解来开启事务管理。
-
-
-2. 方法必须是 public 的
-Spring 只能拦截公共方法上的注解，因此必须确保使用 @Transactional 注解的方法是 public 的。
-
-3. 方法必须从另一个 bean 中调用才能工作
-在同一个 bean 中调用带有 @Transactional 注解的方法将不会触发事务，因为 Spring 无法通过 AOP 代理来拦截该调用。
-
-例如：
-
-```
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @SneakyThrows
-    public void creatUser(){
-        this.creatUser1();
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRES_NEW)
-    public void creatUser1(){
-
-    }
-```
-并且createUser1方法上设置了事务传播策略为：REQUIRES_NEW，但是因为是内部直接调用，createUser1不能不代理处理，无法进行事务管理。
-解决方法：
-
-方式1：新建一个Service，将方法迁移过去，有点麻瓜。
-
-方式2：在当前类注入自己，调用createUser1时通过注入的userService调用
-```
-    @Autowired
-    UserService userService;
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @SneakyThrows
-    public void creatUser(){
-        userService.creatUser1();
-    }
-```
-方式3：通过AopContext.currentProxy()获取代理对象，与方法2类似
-```
-    (UserService)(AopContext.currentProxy()).creatUser1()
-```
-
-4. 异常被吞噬
-如果在 @Transactional 注解标记的方法中抛出了异常，并且异常被捕获并处理了，那么事务可能不会被正确回滚。应该避免在带有 @Transactional 注解的方法中吞噬异常。
-
-示例代码：
-
-```
-@Transactional
-public void doSomething() {
-    try {
-        // Some code that throws an exception
-    } catch (Exception e) {
-        // Exception is caught and not rethrown, so transaction will not roll back
-    }
-}
-```
-
-
-5. 事务只对受检查的异常起作用
-默认情况下，@Transactional 注解只对受检查的异常回滚事务，而不对未受检查的异常（例如 IOException）回滚事务。因此，应该在方法上声明 throws Exception，以便将所有异常都视为受检查的异常。
-
-示例代码：
-```
-@Transactional(rollbackFor = Exception.class)
-public void doSomething() throws Exception {
-    // ...
-}
-```
-
-6. 被final、static关键字修饰的类或方法
-CGLIB是通过生成目标类子类的方式生成代理类的，被final、static修饰后，无法继承父类与父类的方法。
-
-示例代码：
-```
-@Transactional
-public final void doSomething() {
-    // ...
-}
-```
-
-7、
-将注解标注在接口方法上
-
-@Transactional是支持标注在方法与类上的。一旦标注在接口上，对应接口实现类的代理方式如果是CGLIB，将通过生成子类的方式生成目标类的代理，将无法解析到@Transactional，从而事务失效。
-
-  
-8、如果一个事务嵌套在另一个事务中，则内部事务可能会被忽略
-当嵌套使用事务时，必须注意事务传播属性和隔离级别。
-
-示例代码：
-
-```
-@Transactional(propagation = Propagation.REQUIRED)
-public void doSomething() {
-    // This will start a new transaction
-    doSomethingElse();
-}
-
-@Transactional(propagation = Propagation.REQUIRES_NEW)
-public void doSomethingElse() {
-    // This is a new, independent transaction
-}
-```
-
-9、不同的数据源之间的事务
-如果在应用程序中使用了多个数据源，则需要使用特殊的策略来管理跨数据源的事务。例如，可以使用 JTA 管理器来跨多个数据源进行事务管理。
-
-示例代码：
-
-```
-@Bean
-public JtaTransactionManager transactionManager() {
-    return new JtaTransactionManager();
-}
-```
-
-10、多线程场景
-
-事务信息是跟线程绑定的。
-
-因此在多线程环境下，事务的信息都是独立的，将会导致Spring在接管事务上出现差异。
-
-11、数据库本身不支持事务
-   
-   比如Mysql的Myisam存储引擎是不支持事务的，只有innodb存储引擎才支持。
-   
-   这个问题出现的概率极其小，因为Mysql5之后默认情况下是使用innodb存储引擎了。
-   
-   但如果配置错误或者是历史项目，发现事务怎么配都不生效的时候，记得看看存储引擎本身是否支持事务。
-  
- 
  ##### Java基本数据类型
  
  整形：byte(1) short(2) int(4) long(8) 
@@ -905,7 +722,8 @@ executor.shutdown(); // 关闭线程池
 
 ##### JDK动态代理与CGLib动态代理
 
-JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式。CGLib动态代理，采用底层的字节码技术，在运行时创建子类代理的实例 - 目标对象不存在接口时，采用这种方式。
+JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式。
+CGLib动态代理，采用底层的字节码技术，在运行时创建子类代理的实例 - 目标对象不存在接口时，采用这种方式。
 
 ##### 使用＠Autowired注解时，如果一个类可以有多种类型，如何解决
       
@@ -934,7 +752,10 @@ private List<BeanClass> beanList;
 private Map<String, BeanClass> beanMap;
 ```
 
-##### 
+##### finally语句块什么情况下不会执行
+
+1. 程序没有进入到try语句块
+2. 在try或者catch语句块中执行System.exit(0),导致JVM退出
 
 
 
