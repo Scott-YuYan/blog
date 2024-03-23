@@ -1,10 +1,42 @@
 
+##### 面向对象设计的六大原则？
+
+1 单一职责（Single Responsibility Principle）
+这个原则顾名就可以思义，就是一个类应该只负责一个职责
+
+2 开闭原则（Open Close Principle）
+提倡一个类一旦开发完成，后续增加新的功能就不应该通过修改这个类来完成，而是通过继承，增加新的类。
+
+3 里氏替换原则（Liskov Substitution Principle）
+所有引用基类（父类）的地方必须能透明地使用其子类的对象。
+
+4 依赖倒置原则（Dependence Inversion Principle）
+抽象不应该依赖于细节，细节应当依赖于抽象。换言之，要针对接口编程，而不是针对实现编程。
+
+5 接口隔离原则（Interface Segregation Principle）
+使用多个专门的接口，而不使用单一的总接口，即客户端不应该依赖那些它不需要的接口。
+
+6 迪米特原则（Law of Demeter 又名Least Knowledge Principle）
+一个软件实体应当尽可能少地与其他实体发生相互作用。
+
+##### jdk 性能、有用工具
+jmh ：专门用于代码微基准测试的工具套件
+JProfiler
+JConsole ：它用于对JVM中内存，线程和类等的监控
+
+
+
  #####  方法的重写要满足：三同一大一小,三同：方法名相同，返回值类型，形参相同,一大：访问权限大于等于重写前，一小：抛出异常范围小于等于重写前。
  
  ##### Java8之后，接口跟抽象类的区别？
   * Java8之后，接口中可以有默认方法(default)，静态方法(static)，但是不能写构造方法，而抽象类则可以有构造方法，说明构造方法是参与类的实例化过程的。
   * 抽象类可以有自己的成员变量，并且可以通过非抽象方法进行改变，而接口中的变量只能是 public static final的，不能被外部修改。
   * 接口可以多继承、抽象类只能单继承。
+  ##### java 基本数据类型
+  整型 long(8) int(4) short(2) byte(1)
+  浮点 double(8) float(4)
+  字符 char(1)
+  boolean(1)
   
  ##### public protected default private 区别
  
@@ -236,7 +268,7 @@ E：5 10 15 20 25
 后面有人专门提出了解决的方案
 
 其他方案：
-百度开源的分布式唯一ID生成器 UidGenerator
+百度开源的分布式唯一ID生成器 UidGenerator-解决了时钟回拨问题，使用互联网时间进行生成ID
 
 Leaf - 美团点评分布式ID生成系统
 
@@ -333,6 +365,8 @@ TIMED_WAITING 状态：
 当线程调用带有超时参数的方法，如 Thread.sleep(long millis)、Object.wait(long timeout)、Thread.join(long millis) 等时，线程会进入 TIMED_WAITING 状态。
 在 TIMED_WAITING 状态下，线程会等待指定的时间，如果在超时时间内条件仍未满足，线程会自动恢复到就绪状态。
 线程也可能由于其他原因（如 LockSupport.parkNanos()、LockSupport.parkUntil()）而进入 TIMED_WAITING 状态。
+
+
 
 ##### 线程池有哪些状态
 
@@ -722,41 +756,45 @@ executor.shutdown(); // 关闭线程池
 
 ##### JDK动态代理与CGLib动态代理
 
-JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式。
+JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式，并且由于JDK动态代理的底层。
 CGLib动态代理，采用底层的字节码技术，在运行时创建子类代理的实例 - 目标对象不存在接口时，采用这种方式。
+正是由于CGLib使用这种运行时继承被代理类实现动态代理的原理，所以CGlib不能代理fianal类。
 
-##### 使用＠Autowired注解时，如果一个类可以有多种类型，如何解决
-      
-1.使用@Qualifier注解：可以和@Autowired一起使用，用于指定具体要注入的bean名称。在@Autowired注解中使用@Qualifier注解，指定要注入的bean的名称，这样就可以明确指定要注入的bean实例。
-```
-@Autowired
-@Qualifier("beanName")
-private BeanClass bean;
-```
-
-2.使用@Primary注解：可以在多个bean实例中使用@Primary注解，用于指定首选的bean。当存在多个同类型的bean实例时，被标记为@Primary的bean将被优先选择进行注入。
-```
-@Primary
-@Bean
-public BeanClass primaryBean() {
-   // bean的定义
-}
-```
-
-3.使用List或Map集合注入：可以将所有同类型的bean实例注入到一个List或Map集合中。Spring会自动将所有符合类型的bean注入到集合中，然后可以通过遍历集合来使用不同的bean实例。
-```
-@Autowired
-private List<BeanClass> beanList;
-
-@Autowired
-private Map<String, BeanClass> beanMap;
-```
 
 ##### finally语句块什么情况下不会执行
 
 1. 程序没有进入到try语句块
 2. 在try或者catch语句块中执行System.exit(0),导致JVM退出
 
+##### jdk 性能、有用工具记录
+
+##### volatile关键字
+
+
+
+##### 正向代理和反向代理
+
+反向代理例如Nginx（服务器端）,
+正向代理：加速器(客户端)
+
+##### 线程池如何知道一个线程的任务已经执行完成
+1. 在线程池内部，当我们把一个任务丢给线程池去执行，线程池会调度工作线程来执行这个任务的 run 方法，run 方法正常结束，也就意味着任务完成了。
+所以线程池中的工作线程是通过同步调用任务的 run()方法并且等待 run 方法返回后，再去统计任务的完成数量。
+
+2. 如果想在线程池外部去获得线程池内部任务的执行状态，有几种方法可以实现。
+  • 线程池提供了一个 isTerminated()方法，可以判断线程池的运行状态，我们可以循环判断 isTerminated()方法的返回结果来了解线程池的运行状态，
+   一旦线程池的运行状态是 Terminated，意味着线程池中的所有任务都已经执行完了。想要通过这个方法获取状态的前提是，
+   程序中主动调用了线程池的 shutdown()方法。在实际业务中，一般不会主动去关闭线程池，因此这个方法在实用性和灵活性方面都不是很好。
+   
+  • 在线程池中，有一个 submit()方法，它提供了一个 Future 的返回值，我们通过 Future.get()方法来获得任务的执行结果，
+  当线程池中的任务没执行完之前，future.get()方法会一直阻塞，直到任务执行结束。因此，只要 future.get()方法正常返回，
+  也就意味着传入到线程池中的任务已经执行完成了！
+  
+  • 可以引入一个 CountDownLatch 计数器，它可以通过初始化指定一个计数器进行倒计时，
+  其中有两个方法分别是 await()阻塞线程，以及 countDown()进行倒计时，一旦倒计时归零，
+  所以被阻塞在 await()方法的线程都会被释放。基于这样的原理，我们可以定义一个 CountDownLatch 对象并且计数器为 1，
+  接着在线程池代码块后面调用 await()方法阻塞主线程，然后，当传入到线程池中的任务执行完成后，
+  调用 countDown()方法表示任务执行结束。最后，计数器归零 0，唤醒阻塞在 await()方法的线程。
 
 
 
