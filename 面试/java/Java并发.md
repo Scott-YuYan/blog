@@ -36,6 +36,39 @@
 响应中断不同：ReentrantLock 可以lockInterruptibly响应中断，解决死锁的问题，而 synchronized 不能响应中断。
 底层实现不同：synchronized 是 JVM 层面通过监视器实现的，而 ReentrantLock 是基于 AQS 实现的。
 
+##### Synchronized的底层实现原理
+synchronized的底层实现是完全依赖JVM虚拟机的,所以谈synchronized的底层实现，就不得不谈数据在JVM内存的存储：Java对象头，以及Monitor对象监视器。
+1.Java对象头
+
+在JVM虚拟机中，对象在内存中的存储布局，可以分为三个区域:
+
+对象头(Header)
+实例数据(Instance Data)
+对齐填充(Padding)
+
+其中对象头包括两部分：
+   1)类型指针（Klass Pointer）
+   
+   是对象指向它的类元数据的指针，虚拟机通过这个指针来确定这个对象是哪个类的实例;
+   
+   2)标记字段(Mark Word)
+   
+   用于存储对象自身的运行时数据，如哈希码（HashCode）、GC分代年龄、锁状态标志、线程持有的锁、偏向线程 ID、偏向时间戳等等,它是实现轻量级锁和偏向锁的关键.
+   
+   所以，很明显synchronized使用的锁对象是存储在Java对象头里的标记字段里。
+   
+   2.Monitor
+   
+   monitor描述为对象监视器,可以类比为一个特殊的房间，这个房间中有一些被保护的数据，monitor保证每次只能有一个线程能进入这个房间进行访问被保护的数据，
+   进入房间即为持有monitor，退出房间即为释放monitor。
+  
+ 使用syncrhoized加锁的同步代码块在字节码引擎中执行时，主要就是通过锁对象的monitor的取用(monitorenter)与释放(monitorexit)来实现的。
+ 
+##### ReentrantLock底层实现原理
+
+
+
+
 ##### java死锁如何避免
 
 避免嵌套锁：尽量避免在持有一个锁的情况下去申请另一个锁。如果必须使用多个锁，尽量确保获取锁的顺序是一致的，避免出现循环依赖。
@@ -88,3 +121,6 @@ tryRelease(int arg)：尝试释放锁，如果成功则返回true，失败则返
 
 ConcurrentModificationException：在一个线程正在遍历HashMap的同时，另一个线程对HashMap进行结构性修改（如put、remove操作），可能导致迭代器抛出ConcurrentModificationException异常。
 
+##### ThreadLocal的使用场景
+用来实现相同线程数据共享不同的线程数据隔离，但是注意，由于ThreadLocal底层使用的是ThreadLocalMap,这个Map的key是弱引用，value是强引用，生命周期与Thread相同，
+所以只有在Thread退出后，value的强引用链条才会断掉，如果当前线程不结束，则无法被回收，造成泄露。所以使用ThreadLocal需要及时remove否则会引起内存泄露
