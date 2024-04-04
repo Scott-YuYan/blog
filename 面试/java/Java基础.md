@@ -72,134 +72,7 @@ JConsole ：它用于对JVM中内存，线程和类等的监控
  封装：通常认为封装是把数据和操作数据的方法绑定起来，对数据的访问只能通过已定义的接口。面向对象的本质就是将现实世界描绘成一系列完全自治、封闭的对象。我们在类中编写的方法就是对实现细节的一种封装；我们编写一个类就是对数据和数据操作的封装。可以说，封装就是隐藏一切可隐藏的东西，只向外界提供最简单的编程接口（可以想想普通洗衣机和全自动洗衣机的差别，明显全自动洗衣机封装更好因此操作起来更简单；我们现在使用的智能手机也是封装得足够好的，因为几个按键就搞定了所有的事情）。
  
  多态性：多态性是指允许不同子类型的对象对同一消息作出不同的响应。简单的说就是用同样的对象引用调用同样的方法但是做了不同的事情。多态性分为编译时的多态性和运行时的多态性。方法重载（overload）实现的是编译时的多态性（也称为前绑定），而方法重写（override）实现的是运行时的多态性（也称为后绑定）。
- 
- ##### 线程池ThreadPoolExecutor核心方法execute()原理源码分析
- 
- 1. 构造方法
- 首先解释一下各个参数：
- 
- ①corePoolSize：核心线程数 - 线程中长期存活的线程数
 
-  使用Runtime.getRuntime().availableProcessors()可以获取当前可用的处理器数量
- 
- ②maximumPoolSize：最大线程数(最大线程数只限制了下限，没有限制上限，但是上限也有限制并不能达到Integer.MAX_VALUE，下文分析)，通过该下限限制可以发现最大线程最少有1个
- 
- ③keepAliveTime:当前线程数>核心线程数时，允许超过核心线程数的这些线程等待任务的最大时间
- 
- ④unit：③的时间单位
- 
-   TimeUnit.DAYS：天
-   TimeUnit.HOURS：小时
-   TimeUnit.MINUTES：分
-   TimeUnit.SECONDS：秒
-   TimeUnit.MILLISECONDS：毫秒
-   TimeUnit.MICROSECONDS：微妙
-   
- ⑤workQueue：用来存放任务的队列
- 
-   一个阻塞队列，用来存储线程池等待执行的任务，均为线程安全，它包含以下 7 种类型：
-   
-   ArrayBlockingQueue：一个由数组结构组成的有界阻塞队列。
-   LinkedBlockingQueue：一个由链表结构组成的有界阻塞队列。
-   SynchronousQueue：一个不存储元素的阻塞队列，即直接提交给线程不保持它们。
-   PriorityBlockingQueue：一个支持优先级排序的无界阻塞队列。
-   DelayQueue：一个使用优先级队列实现的无界阻塞队列，只有在延迟期满时才能从中提取元素。
-   LinkedTransferQueue：一个由链表结构组成的无界阻塞队列。与SynchronousQueue类似，还含有非阻塞方法。
-   LinkedBlockingDeque：一个由链表结构组成的双向阻塞队列。
-   较常用的是 LinkedBlockingQueue 和 Synchronous，线程池的排队策略与 BlockingQueue 有关。
- 
- ⑥threadFactory：用来创建线程池中线程的工厂类(默认使用的默认提供的共厂类，通过源码可以了解到该工厂创建的线程是非守护线程并且优先级为5)
- 
- ⑦handler：拒绝服务的对象，提供拒绝服务功能
-   
-   触发拒绝策略来处理新提交的任务。以下是几种常见的拒绝策略：
-   
-   AbortPolicy（默认）：抛出RejectedExecutionException异常，表示无法处理新任务。
-   
-   CallerRunsPolicy：将任务退回给调用者，如果线程池的执行器已关闭，则直接丢弃任务。
-   
-   DiscardOldestPolicy：丢弃工作队列中最旧的任务，然后尝试提交新任务。
-   
-   DiscardPolicy：默默地丢弃无法处理的任务，不提供任何反馈。
-   
-   这些拒绝策略可以通过ThreadPoolExecutor类的构造方法或setRejectedExecutionHandler()方法进行设置。在选择拒绝策略时，需要根据具体的业务场景和需求来决定如何处理无法接受的任务。
-
- 
- 2.execute()方法分析前提知识
- ①首先要知道线程池中有线程池的自身状态，以及线程池中运行线程的个数，程池很巧妙的将这两个信息保存在一个32bit的int类型变量中，并且这个变量 是线程安全的AtomicInteger对象，其中使用高3位来保存线程池的自身状态，低29位保存线程池中工作线程的个数。
- 从源码可以看出，该方法主要分为三步分别如下：
- ```
-         if (command == null)
-             throw new NullPointerException();
-         int c = ctl.get();
-         if (workerCountOf(c) < corePoolSize) {
-             if (addWorker(command, true))
-                 return;
-             c = ctl.get();
-         }
-         if (isRunning(c) && workQueue.offer(command)) {
-             int recheck = ctl.get();
-             if (! isRunning(recheck) && remove(command))
-                 reject(command);
-             else if (workerCountOf(recheck) == 0)
-                 addWorker(null, false);
-         }
-         else if (!addWorker(command, false))
-             reject(command);
-```
- 
- 
- 首先获取记录线程池状态以及工作线程数的int变量值c
- 
- 第一步：根据c计算出工作线程数，如果线程数<核心线程数，创建一个核心线程并立刻处理该次提交的任务，然后该方法结束。
- 
- 第二步：如果第一步条件不成立(工作线程>=核心线程||创建核心线程因为某种原因失败)，判断线程池是否是运行状态，如果是运行状态然后把该次提交的任务放在任务队列中_延时处理_，然后再重新获取这个c再检查一次线程池的状态是否是运行状态，如果不是运行状态就把刚才添加的任务从任务队列中移除，把这个移除的任务交给构造方法传入的拒绝服务对象，走拒绝服务逻辑。如果是运行状态然后检查线程池是否还有工作线程数，如果没有则创建一个线程保证，至少有一个线程消费该任务队列。
- 
- 第三步：如果前两步不成立(线程池不是运行状态||任务队列添加满了)，然后添加一个非核心线程立刻处理该次提交的任务(早于大多数还在队列中等待的任务)，如果添加失败，则会把该次任务交给拒绝服务对象，走拒绝服务逻辑。
- 
- 总结：如果核心线程<用户输入的核心线程数则添加核心线程，并用该线程处理该任务，否则把该任务添加到任务队列中等待线程处理，如果核心线程队列满了，则添加非核心线程，并处理该次提交的任务，如果都不满足，则拒绝服务该任务。
-
-创建线程池举例：
-```
-/**  线程池配置
- * @version V1.0
- */
-public class ExecutorConfig {
-    private static int maxPoolSize = Runtime.getRuntime().availableProcessors();
-    private volatile static ExecutorService executorService;
-    public static ExecutorService getThreadPool() {
-        if (executorService == null){
-            synchronized (ExecutorConfig.class){
-                if (executorService == null){
-                    executorService =  newThreadPool();
-                }
-            }
-        }
-        return executorService;
-    }
-
-    private static  ExecutorService newThreadPool(){
-        int queueSize = 500;
-        int corePool = Math.min(5, maxPoolSize);
-        return new ThreadPoolExecutor(corePool, maxPoolSize, 10000L, TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<>(queueSize),new ThreadPoolExecutor.AbortPolicy());
-    }
-    private ExecutorConfig(){}
-}
-```
-
-
-##### 线程池的执行流程
-
-创建线程池：通过ThreadPoolExecutor类或Executors工厂类创建一个线程池，指定线程池的核心线程数、最大线程数、线程存活时间、任务队列等参数。
-
-提交任务：将任务（实现了Runnable或Callable接口的任务）提交给线程池执行，可以使用execute()方法或submit()方法提交任务。
-
-任务执行：线程池根据内部的线程管理策略，执行提交的任务。如果当前线程池中的线程数量小于核心线程数，则创建新的线程来执行任务；如果当前线程池中的线程数量已经达到核心线程数，并且任务队列未满，则将任务放入任务队列；如果任务队列已满，但是线程数未达到最大线程数，则创建新的线程来执行任务；如果线程池中的线程数已经达到最大线程数，则根据指定的拒绝策略来处理无法执行的任务。
-
-任务执行完成：任务执行完成后，线程池会将线程归还到线程池中以供下次使用。
-
-关闭线程池：当不再需要线程池时，需要调用shutdown()或shutdownNow()方法来关闭线程池，释放线程池所占用的资源。
 
 ##### 集群高并发情况下如何保证分布式唯一全局ID生成
 
@@ -365,18 +238,6 @@ TIMED_WAITING 状态：
 当线程调用带有超时参数的方法，如 Thread.sleep(long millis)、Object.wait(long timeout)、Thread.join(long millis) 等时，线程会进入 TIMED_WAITING 状态。
 在 TIMED_WAITING 状态下，线程会等待指定的时间，如果在超时时间内条件仍未满足，线程会自动恢复到就绪状态。
 线程也可能由于其他原因（如 LockSupport.parkNanos()、LockSupport.parkUntil()）而进入 TIMED_WAITING 状态。
-
-
-
-##### 线程池有哪些状态
-
-RUNNING（运行）：线程池处于 RUNNING 状态时，可以接受新任务，并处理阻塞队列中的任务。当且仅当线程池处于 RUNNING 状态时，才能接受新任务。
-
-SHUTDOWN（关闭）：线程池进入 SHUTDOWN 状态后，不再接受新任务，但会继续执行阻塞队列中的任务。可以调用线程池的 shutdown() 方法将线程池转换为 SHUTDOWN 状态。
-
-STOP（停止）：线程池进入 STOP 状态后，不再接受新任务，不再执行阻塞队列中的任务，并尝试中断正在执行的任务。可以调用线程池的 shutdownNow() 方法将线程池转换为 STOP 状态。
-
-TERMINATED（终止）：线程池进入 TERMINATED 状态后，所有的任务都已经完成，线程池已经关闭。可以通过线程池的 isTerminated() 方法来判断线程池是否已经终止。
 
 
 ##### Thread.run()方法跟Thread.start()方法区别
@@ -652,6 +513,9 @@ ReentrantLock：ReentrantLock是Java提供的可重入锁（Reentrant Lock）实
 
 
 ##### Java基本类型与引用类型的==与equals方法
+
+基本类型只能通过== 判断值是否相等，
+
 == 对于基本类型来说是值比较，对于引用类型来说是比较的是引用；
 而equals 默认情况下是引用比较，只是很多类重写了equals 方法，比如String、Integer 等把它变成了值比较，所以一般情况下equals 比较的是值是否相等。
 
@@ -660,7 +524,8 @@ ReentrantLock：ReentrantLock是Java提供的可重入锁（Reentrant Lock）实
 
 在Java中，SimpleDateFormat类是线程不安全的。这意味着在多线程环境下，同时对同一个SimpleDateFormat对象进行操作可能会导致不可预测的结果，甚至可能引发异常。
 
-原因在于SimpleDateFormat内部维护了一个Calendar实例来处理日期和时间的格式化和解析。由于Calendar本身也是可变的，而SimpleDateFormat没有进行充分的同步措施，因此可能导致线程安全问题。
+原因在于SimpleDateFormat内部维护了一个Calendar实例来处理日期和时间的格式化和解析。由于Calendar本身也是可变的，而SimpleDateFormat没有进行充分的同步措施，
+因此可能导致线程安全问题。
 
 为了在多线程环境下安全地使用SimpleDateFormat，可以采取以下两种方法之一：
 
@@ -756,21 +621,44 @@ executor.shutdown(); // 关闭线程池
 
 ##### JDK动态代理与CGLib动态代理
 
-JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式，并且由于JDK动态代理的底层。
-CGLib动态代理，采用底层的字节码技术，在运行时创建子类代理的实例 - 目标对象不存在接口时，采用这种方式。
+JDK动态代理，是Java提供的动态代理技术，可以在运行时创建接口的代理实例-Spring AOP默认采用这种方式，并且由于JDK动态代理的底层，如果没有接口，Spring用的就是Cglib代理。
+CGLib动态代理，采用底层的字节码技术，在运行时创建子类代理的实例 - 目标对象不存在接口时，采用这种方式，SpringBoot使用这种代理方式。
 正是由于CGLib使用这种运行时继承被代理类实现动态代理的原理，所以CGlib不能代理fianal类。
-
 
 ##### finally语句块什么情况下不会执行
 
 1. 程序没有进入到try语句块
 2. 在try或者catch语句块中执行System.exit(0),导致JVM退出
 
-##### jdk 性能、有用工具记录
-
 ##### volatile关键字
+volatile是Java提供的一种轻量级的同步机制。与synchronized修饰方法、代码块不同，volatile只用来修饰变量。
+并且与synchronized、ReentrantLock等重量级锁不同的是，volatile更轻量级，因为它不会引起线程上下文的切换和调度。
 
+说volatile作用之前，先说一下并发编程的三大特性：原子性、可见性和有序性。
 
+原子性
+即一个或者多个操作作为一个整体，要么全部执行，要么都不执行，并且操作在执行过程中不会被线程调度机制打断；而且这种操作一旦开始，就一直运行到结束，中间不会有任何上下文切换。
+
+可见性
+可见性是指当多个线程访问同一个变量时，一个线程修改了这个变量的值，其他线程能够立即看得到修改的值。
+
+有序性
+为了提高程序的执行效率，编译器会对编译后的指令进行重排序，即代码的编写顺序不一定就是代码的执行顺序。
+
+并发编程中只有同时满足这三大特性，才能保证程序正确的执行。而volatile的只保证了可见性和有序性，不保证原子性。
+volatile的作用只有两个：
+
+保证内存的可见性
+Volatile实现禁止指令重排优化（保证有序性）
+
+##### 那么volatile是怎么解决可见性问题呢？
+volatile主要通过汇编lock前缀指令，它会锁定当前内存区域的缓存（缓存行），并且立即将当前缓存行数据写入主内存（耗时非常短），
+回写主内存的时候会通过MESI协议使其他线程缓存了该变量的地址失效，从而导致其他线程需要重新去主内存中重新读取数据到其工作线程中。
+
+要注意volatile关键字是无法替代synchronized关键字的，因为volatile关键字无法保证操作的原子性。通常来说，使用volatile必须具备以下2个条件：
+
+对变量的写操作不依赖于当前值
+该变量没有包含在具有其他变量的不变式中
 
 ##### 正向代理和反向代理
 
@@ -796,7 +684,77 @@ CGLib动态代理，采用底层的字节码技术，在运行时创建子类代
   接着在线程池代码块后面调用 await()方法阻塞主线程，然后，当传入到线程池中的任务执行完成后，
   调用 countDown()方法表示任务执行结束。最后，计数器归零 0，唤醒阻塞在 await()方法的线程。
 
+代码实现：
+```
+private static void countDownLatchTest() throws Exception { 
+    //计数器，判断线程是否执行结束      
+    CountDownLatch taskLatch = new CountDownLatch(30);
+    for (int i = 0; i < 30; i++) {          
+        int index = i;          
+        pool.execute(() -> { 
+            sleepMtehod(index);
+            taskLatch.countDown(); 
+            System.out.println("当前计数器数量：" + taskLatch.getCount());     
+        });     
+    }      
+    //当前线程阻塞，等待计数器置为0   
+    taskLatch.await();      
+    System.out.println("全部执行完毕"); 
+} 
+```
 
 
+##### top和jStack分析CPU飙升问题
+
+CPU飙升可能出现在以下几种场景中：
+死循环：当程序中存在无限循环时，CPU会一直执行循环代码，导致CPU占用率飙升。
+大量计算：当程序需要进行大量的计算操作时，会导致CPU负载增加，从而使CPU占用率飙升。
+死锁：当多个线程相互等待对方释放资源时，会导致死锁现象，此时CPU会一直处于忙碌状态，导致CPU占用率飙升。
+高并发请求：当系统面临大量并发请求时，CPU需要同时处理多个请求，导致CPU占用率飙升。
+病毒或恶意软件：当计算机感染病毒或运行恶意软件时，这些恶意程序可能会占用大量CPU资源，导致CPU占用率飙升
+
+1.top
+在服务器上，我们可以通过top命令查看各个进程的cpu使用情况，它默认是按cpu使用率由高到低排序的
+
+2. top -Hp pid
+通过top -Hp 21340可以查看该进程下，各个线程的cpu使用情况
+
+3. 将线程pid转换为16进制
+转换命令：$printf '%x\n'  线程pid 
+
+4. jstack 进度pid | grep -A 200 16进制线程ID
+
+4. jstack -l [PID] >/tmp/log.txt （导出到日志文件中）
 
 
+Dump 文件分析关注重点
+
+    runnable，线程处于执行中
+
+    deadlock，死锁（重点关注）
+
+    blocked，线程被阻塞 （重点关注）
+
+    Parked，停止
+
+    locked，对象加锁
+
+    waiting，线程正在等待
+
+    waiting to lock 等待上锁
+
+    Object.wait()，对象等待中
+
+    waiting for monitor entry 等待获取监视器（重点关注）
+
+    Waiting on condition，等待资源（重点关注），最常见的情况是线程在等待网络的读写
+
+另外，火焰图可以更加直观详细的看到详细信息。
+
+##### sleep和wait有什么区别 
+ 1.wait 方法必须配合 synchronized 一起使用，不然在运行时就会抛出 IllegalMonitorStateException 的异常,而 sleep 可以单独使用，无需配合 synchronized 一起使用。
+ 2.wait 方法属于 Object 类的方法，而 sleep 属于 Thread 类的方法
+ 3.sleep 方法必须要传递一个超时时间的参数，且过了超时时间之后，线程会自动唤醒。而 wait 方法可以不传递任何参数，不传递任何参数时表示永久休眠，
+ 直到另一个线程调用了 notify 或 notifyAll 之后，休眠的线程才能被唤醒。也就是说 sleep 方法具有主动唤醒功能，而不传递任何参数的 wait 方法只能被动的被唤醒。
+ 4.wait 方法会主动的释放锁，而 sleep 方法则不会。
+ 5.调用 sleep 方法线程会进入 TIMED_WAITING 有时限等待状态，而调用无参数的 wait 方法，线程会进入 WAITING 无时限等待状态。

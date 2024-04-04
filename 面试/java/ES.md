@@ -307,117 +307,6 @@ GET company/department/_search
   }
 }
   
-
-##### ES - 检索和过滤的区别 (query v.s filter) 
-1.1 准备测试数据
-```
-PUT website/_doc/1
-{
-    "title": "小白学ES01",
-    "desc": "the first blog about es",
-    "level": 1, 
-    "post_date": "2018-10-10",
-    "post_address": {
-        "country": "China",
-        "province": "GuangDong",
-        "city": "GuangZhou"
-    }
-}
-
-PUT website/_doc/2
-{
-    "title": "小白学ES02",
-    "desc": "the second blog about es",
-    "level": 3,
-    "post_date": "2018-11-11",
-    "post_address": {
-        "country": "China",
-        "province": "ZheJiang",
-        "city": "HangZhou"
-    }
-}
-```
-
-1.2 搜索测试 
- 
- 不使用filter
-```
-GET website/_doc/_search
-{
-    "query": {
-        "bool": {
-            "must": [
-                { "match": { "post_date": "2018-11-11" } }, 
-                { "range": { "level": { "gte": 2 } } }
-            ]
-        }
-    }
-}
-// 结果信息: 
-"hits": {
-    "total": 1,
-    "max_score": 2.0,
-    "hits": [
-        {
-            "_index": "website2",
-        	"_type": "blog",
-        	"_id": "2",
-        	"_score": 2.0,			// 评分为2.0
-        	"_source": {
-          		"title": "小白学ES02",
-          		"desc": "the second blog about es",
-          		"level": 3,
-          		"post_date": "2018-11-11",
-          		"post_address": {
-            		"country": "China",
-            		"province": "ZheJiang",
-            		"city": "HangZhou"
-          		}
-        	}
-      	}
-	]
-}
-```
-使用filter:
-```
-GET website/_doc/_search
-{
-    "query": {
-        "bool": {
-            "must": { 
-                "match": { "post_date": "2018-11-11" }
-            }, 
-            "filter": {
-                "range": { "level": { "gte": 2 } }
-            }
-        }
-    }
-}
-// 结果信息: 
-"hits": {
-    "total": 1,
-    "max_score": 1.0,
-    "hits": [
-        {
-        	"_index": "website2",
-        	"_type": "blog",
-        	"_id": "2",
-        	"_score": 1.0,		// 评分为1.0
-        	"_source": {
-          		"title": "小白学ES02",
-          		"desc": "the second blog about es",
-          		"level": 3,
-          		"post_date": "2018-11-11",
-          		"post_address": {
-            		"country": "China",
-            		"province": "ZheJiang",
-            		"city": "HangZhou"
-          		}
-        	}
-      	}
-    ]
-}
-```
 2 复杂数据类型
 2.1 数组类型 - array
 ES中没有专门的数组类型, 直接使用[]定义即可;
@@ -685,6 +574,116 @@ GET employee/customer/_search
         "term": { "name.length": 2 }
     }
 }
+##### ES - 检索和过滤的区别 (query v.s filter) 
+1.1 准备测试数据
+```
+PUT website/_doc/1
+{
+    "title": "小白学ES01",
+    "desc": "the first blog about es",
+    "level": 1, 
+    "post_date": "2018-10-10",
+    "post_address": {
+        "country": "China",
+        "province": "GuangDong",
+        "city": "GuangZhou"
+    }
+}
+
+PUT website/_doc/2
+{
+    "title": "小白学ES02",
+    "desc": "the second blog about es",
+    "level": 3,
+    "post_date": "2018-11-11",
+    "post_address": {
+        "country": "China",
+        "province": "ZheJiang",
+        "city": "HangZhou"
+    }
+}
+```
+
+1.2 搜索测试 
+ 
+ 不使用filter
+```
+GET website/_doc/_search
+{
+    "query": {
+        "bool": {
+            "must": [
+                { "match": { "post_date": "2018-11-11" } }, 
+                { "range": { "level": { "gte": 2 } } }
+            ]
+        }
+    }
+}
+// 结果信息: 
+"hits": {
+    "total": 1,
+    "max_score": 2.0,
+    "hits": [
+        {
+            "_index": "website2",
+        	"_type": "blog",
+        	"_id": "2",
+        	"_score": 2.0,			// 评分为2.0
+        	"_source": {
+          		"title": "小白学ES02",
+          		"desc": "the second blog about es",
+          		"level": 3,
+          		"post_date": "2018-11-11",
+          		"post_address": {
+            		"country": "China",
+            		"province": "ZheJiang",
+            		"city": "HangZhou"
+          		}
+        	}
+      	}
+	]
+}
+```
+使用filter:
+```
+GET website/_doc/_search
+{
+    "query": {
+        "bool": {
+            "must": { 
+                "match": { "post_date": "2018-11-11" }
+            }, 
+            "filter": {
+                "range": { "level": { "gte": 2 } }
+            }
+        }
+    }
+}
+// 结果信息: 
+"hits": {
+    "total": 1,
+    "max_score": 1.0,
+    "hits": [
+        {
+        	"_index": "website2",
+        	"_type": "blog",
+        	"_id": "2",
+        	"_score": 1.0,		// 评分为1.0
+        	"_source": {
+          		"title": "小白学ES02",
+          		"desc": "the second blog about es",
+          		"level": 3,
+          		"post_date": "2018-11-11",
+          		"post_address": {
+            		"country": "China",
+            		"province": "ZheJiang",
+            		"city": "HangZhou"
+          		}
+        	}
+      	}
+    ]
+}
+```
 
 ##### Elasticsearch如何定制分词器 (自定义分词策略) 
 分析器的组成

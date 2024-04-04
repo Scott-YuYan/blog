@@ -207,15 +207,14 @@ acceptCount: 如果 Tomcat 的线程都忙于响应，新来的连接会进入 �
 Redis 使用的是 noeviction 类型的内存淘汰机制，它表示当运行内存超过最大设置内存时，不淘汰任何数据，但新增操作会报错。
 
 Redis 4.0 版本以后一共提供了 8 种数据淘汰策略，从淘汰数据的候选集范围来看，我们有两种候选范围：一种是所有数据都是候选集，一种是设置了过期时间的数据是候选集。无论是面向哪种候选数据集进行淘汰数据选择，我们都有三种策略，分别是随机选择，根据 LRU 算法选择，以及根据 LFU 算法选择
-设置过期时间：
 
+设置过期时间：
 volatile-ttl 在筛选时，会针对设置了过期时间的键值对，根据过期时间的先后进行删除，越早过期的越先被删除。
 volatile-random 就像它的名称一样，在设置了过期时间的键值对中，进行随机删除。
 volatile-lru 会使用 LRU 算法筛选设置了过期时间的键值对。
 volatile-lfu 会使用 LFU 算法选择设置了过期时间的键值对
 
 所有数据进行淘汰：
-
 allkeys-random 策略，从所有键值对中随机选择并删除数据；
 allkeys-lru 策略，使用 LRU 算法在所有数据中进行筛选。
 allkeys-lfu 策略，使用 LFU 算法在所有数据中进行筛选。
@@ -223,6 +222,9 @@ allkeys-lfu 策略，使用 LFU 算法在所有数据中进行筛选。
 不淘汰数据：
 noeviction:不淘汰任何数据，当内存不足时，新增操作会报错，Redis 默认内存淘汰策略；
 
+LRU：最近最少使用(最长时间)淘汰算法（Least Recently Used）。 LRU是淘汰最长时间没有被使用的页面。
+
+LFU：最不经常使用(最少次)淘汰算法（Least Frequently Used）。 LFU是淘汰一段时间内，使用次数最少的页面。
 
 ##### Redis过期删除策略
 
@@ -284,6 +286,225 @@ noeviction:不淘汰任何数据，当内存不足时，新增操作会报错，
 　　　　　如果执行的太少，那又和惰性删除一样了，过期键占用的内存不会及时得到释放。
 
 　　　　　另外最重要的是，在获取某个键时，如果某个键的过期时间已经到了，但是还没执行定期删除，那么就会返回这个键的值，这是业务不能忍受的错误。
+
+
+##### Redis分布式加锁解锁的正确方式
+
+正确的加解锁方式，要满足以下几个条件：
+
+1、命令必须保证互斥
+2、设置的 key必须要有过期时间，防止崩溃时锁无法释放
+3、value使用唯一id标志每个客户端，保证只有锁的持有者才可以释放锁
+
+加锁直接使用set命令同时设置唯一id和过期时间；
+其中解锁稍微复杂些，加锁之后可以返回唯一id，标志此锁是该客户端锁拥有；释放锁时要先判断拥有者是否是自己，然后删除，这个需要redis的lua脚本保证两个命令的原子性执行。
+具体代码：
+Jedis实现：
+```
+@Slf4j
+public class RedisDistributedLock {
+    private static final String LOCK_SUCCESS = "OK";
+    private static final Long RELEASE_SUCCESS = 1L;
+    private static final String SET_IF_NOT_EXIST = "NX";
+    private static final String SET_WITH_EXPIRE_TIME = "PX";
+    // 锁的超时时间
+    private static int EXPIRE_TIME = 5 * 1000;
+    // 锁等待时间
+    private static int WAIT_TIME = 1 * 1000;
+
+    private Jedis jedis;
+    private String key;
+
+    public RedisDistributedLock(Jedis jedis, String key) {
+        this.jedis = jedis;
+        this.key = key;
+    }
+
+    // 不断尝试加锁
+    public String lock() {
+        try {
+            // 超过等待时间，加锁失败
+            long waitEnd = System.currentTimeMillis() + WAIT_TIME;
+            String value = UUID.randomUUID().toString();
+            while (System.currentTimeMillis() < waitEnd) {
+                String result = jedis.set(key, value, SET_IF_NOT_EXIST, SET_WITH_EXPIRE_TIME, EXPIRE_TIME);
+                if (LOCK_SUCCESS.equals(result)) {
+                    return value;
+                }
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } catch (Exception ex) {
+            log.error("lock error", ex);
+        }
+        return null;
+    }
+
+    public boolean release(String value) {
+        if (value == null) {
+            return false;
+        }
+        // 判断key存在并且删除key必须是一个原子操作
+        // 且谁拥有锁，谁释放
+        String script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+        Object result = new Object();
+        try {
+            result = jedis.eval(script, Collections.singletonList(key),
+                    Collections.singletonList(value));
+            if (RELEASE_SUCCESS.equals(result)) {
+                log.info("release lock success, value:{}", value);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("release lock error", e);
+        } finally {
+            if (jedis != null) {
+                jedis.close();
+            }
+        }
+        log.info("release lock failed, value:{}, result:{}", value, result);
+        return false;
+    }
+}
+```
+
+Redisson实现：
+单机模式
+```
+Config config = new Config();
+config.useSingleServer()
+        .setAddress("redis://127.0.0.1:6379")
+        .setPassword("123456")
+        .setDatabase(0);
+RedissonClient redissonClient = Redisson.create(config);
+//获取锁对象实例
+final String lockKey = "abc";
+RLock rLock = redissonClient.getLock(lockKey);
+
+try {
+    //尝试5秒内获取锁，如果获取到了，最长60秒自动释放
+    boolean res = rLock.tryLock(5L, 60L, TimeUnit.SECONDS);
+    if (res) {
+        //成功获得锁，在这里处理业务
+        System.out.println("获取锁成功");
+    }
+} catch (Exception e) {
+    System.out.println("获取锁失败，失败原因：" + e.getMessage());
+} finally {
+    //无论如何, 最后都要解锁
+    rLock.unlock();
+}
+
+//关闭客户端
+redissonClient.shutdown();
+```
+集群模式：
+```
+Config config1 = new Config();
+config1.useSingleServer().setAddress("redis://192.168.3.111:6379").setPassword("a123456").setDatabase(0);
+RedissonClient redissonClient1 = Redisson.create(config1);
+
+Config config2 = new Config();
+config2.useSingleServer().setAddress("redis://192.168.3.112:6379").setPassword("a123456").setDatabase(0);
+RedissonClient redissonClient2 = Redisson.create(config2);
+
+Config config3 = new Config();
+config3.useSingleServer().setAddress("redis://192.168.3.113:6379").setPassword("a123456").setDatabase(0);
+RedissonClient redissonClient3 = Redisson.create(config3);
+
+//获取多个 RLock 对象
+final String lockKey = "abc";
+RLock lock1 = redissonClient1.getLock(lockKey);
+RLock lock2 = redissonClient2.getLock(lockKey);
+RLock lock3 = redissonClient3.getLock(lockKey);
+
+//根据多个 RLock 对象构建 RedissonRedLock （最核心的差别就在这里）
+RedissonRedLock redLock = new RedissonRedLock(lock1, lock2, lock3);
+
+try {
+    //尝试5秒内获取锁，如果获取到了，最长60秒自动释放
+    boolean res = redLock.tryLock(5L, 60L, TimeUnit.SECONDS);
+    if (res) {
+        //成功获得锁，在这里处理业务
+        System.out.println("获取锁成功");
+
+    }
+} catch (Exception e) {
+    System.out.println("获取锁失败，失败原因：" + e.getMessage());
+} finally {
+    //无论如何, 最后都要解锁
+    redLock.unlock();
+}
+```
+参考：《Redis实战之Redisson使用技巧详解，干活！》 https://www.51cto.com/article/743175.html
+
+如果拿到分布式锁的节点宕机，且这个锁正好处于锁住的状态时，会出现锁死的状态，为了避免这种情况的发生，
+锁都会设置一个过期时间。这样也存在一个问题，加入一个线程拿到了锁设置了30s超时，在30s后这个线程还没有执行完毕，锁超时释放了，就会导致问题。
+
+##### Redisson看门狗机制
+上面这个问题Redisson给出了自己的答案，就是 watch dog 自动延期机制。
+Redisson提供了一个监控锁的看门狗，它的作用是在Redisson实例被关闭前，不断的延长锁的有效期，也就是说，如果一个拿到锁的线程一直没有完成逻辑，
+那么看门狗会使用while循环帮助线程不断的延长锁超时时间，锁不会因为超时而被释放。
+默认情况下，看门狗的续期时间是30s，也可以通过修改Config.lockWatchdogTimeout来另行指定。
+另外Redisson 还提供了可以指定leaseTime参数的加锁方法来指定加锁的时间。超过这个时间后锁便自动解开了，不会延长锁的有效期。
+
+##### Redis哨兵
+Redis集群的主从复制模式下，一旦主节点由于故障不能提供服务，需要人工将节点晋升为主节点，同时还要通知应用方更新主节点地址，Redis2.8之后提供Redis Sentinel（哨兵）解决这个问题。
+Redis Sentinel能自动完成故障发现和故障转移，并通知应用方，真正实现高可用。
+
+##### Redis Sentinel实现原理
+Redis Sentinel通过三个定时监控任务完成对各个节点发现和监控：
+  1.每隔10s，每个sentinel节点会向主节点和从节点发送info命令，获取最新的拓扑结构。
+  2.每隔2s，每个sentinel节点会向redis数据节点的_sentinel_hello频道发送该sentinel节点对于主节点的判断以及当前sentinel节点的信息。
+  3.每隔1s，每个sentinel节点会向主节点、从节点，其余sentinel节点发送一条ping命令做一次心跳检测，来确认节点是否可达。
+
+##### Redis集群搭建
+集群的搭建需要以下三个步骤：
+   1.准备节点 2.节点握手 3.分配槽
+   
+   准备节点：
+    Redis集群一般由多个节点组成，节点数量至少为6个才能保证完整的高可用集群，每个节点需要开启cluster-enabled yes，准备节点之后，每个节点并不知道对方的存在。
+   节点握手:
+    节点握手指的是集群模式下的节点通过Gossip协议彼此通信，感知对方。节点握手由客户端发起命令：cluster meet {ip} {port}
+    节点握手之后，集群还不能正常工作，这时候集群处于下线状态，所有的数据读写都被禁止。
+   分配槽：
+    redis集群把所有的数据映射到16384个槽中，只有当节点分配了槽，才能相应这些槽关联的键命令。通过cluster addslots命令为节点分配槽。
+
+###### Redis为什么要用跳表实现ZSET?
+
+对于这个问题，Redis的作者 @antirez 是怎么说的：
+
+There are a few reasons:
+
+They are not very memory intensive. It's up to you basically. Changing parameters about the probability of a node to have a given number of levels will make then less memory intensive than btrees.
+
+A sorted set is often target of many ZRANGE or ZREVRANGE operations, that is, traversing the skip list as a linked list. With this operation the cache locality of skip lists is at least as good as with other kind of balanced trees.
+
+They are simpler to implement, debug, and so forth. For instance thanks to the skip list simplicity I received a patch (already in Redis master) with augmented skip lists implementing ZRANK in O(log(N)). It required little changes to the code.
+
+简单翻译一下，主要是从内存占用、对范围查找的支持、实现难易程度这三方面总结的原因：
+
+它们不是非常内存密集型的。基本上由你决定。改变关于节点具有给定级别数的概率的参数将使其比 btree 占用更少的内存。
+Zset 经常需要执行 ZRANGE 或 ZREVRANGE-逆序 的命令，即作为链表遍历跳表。通过此操作，跳表的缓存局部性至少与其他类型的平衡树一样好。
+它们更易于实现、调试等。例如，由于跳表的简单性，我收到了一个补丁（已经在Redis master中），其中扩展了跳表，在 O(log(N) 中实现了 ZRANK。它只需要对代码进行少量修改。
+
+详细补充点：
+
+从内存占用上来比较，跳表比平衡树更灵活一些。平衡树每个节点包含 2 个指针（分别指向左右子树），而跳表每个节点包含的指针数目平均为 1/(1-p)，具体取决于参数 p 的大小。
+如果像 Redis里的实现一样，取 p=1/4，那么平均每个节点包含 1.33 个指针，比平衡树更有优势。
+
+在做范围查找的时候，跳表比平衡树操作要简单。在平衡树上，我们找到指定范围的小值之后，还需要以中序遍历的顺序继续寻找其它不超过大值的节点。
+如果不对平衡树进行一定的改造，这里的中序遍历并不容易实现。而在跳表上进行范围查找就非常简单，只需要在找到小值之后，对第 1 层链表进行若干步的遍历就可以实现。
+
+从算法实现难度上来比较，跳表比平衡树要简单得多。平衡树的插入和删除操作可能引发子树的调整，逻辑复杂，而跳表的插入和删除只需要修改相邻节点的指针，操作简单又快速。
+
+##### Redisson 介绍
+Redisson在基于NIO的Netty框架上，充分的利⽤了Redis键值数据库提供的⼀系列优势，在Java实⽤⼯具包中常⽤接⼝的基础上，
+为使⽤者提供了⼀系列具有分布式特性的常⽤⼯具类。使得原本作为协调单机多线程并发程序的⼯具包获得了协调分布式多机多线程并发系统的能⼒，
+⼤⼤降低了设计和研发⼤规模分布式系统的难度。同时结合各富特⾊的分布式服务，更进⼀步简化了分布式环境中程序相互之间的协作
 
 
 

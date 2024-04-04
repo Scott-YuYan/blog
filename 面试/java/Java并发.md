@@ -64,9 +64,72 @@ synchronized的底层实现是完全依赖JVM虚拟机的,所以谈synchronized�
   
  使用syncrhoized加锁的同步代码块在字节码引擎中执行时，主要就是通过锁对象的monitor的取用(monitorenter)与释放(monitorexit)来实现的。
  
+ 
+##### Synchronized存在一个锁的升级过程
+简单来说过程就是：偏向锁->轻量级锁(自旋锁)->重量级锁
+
+偏向锁
+
+首先，什么叫偏向锁？举个例子，一段同步的代码，一直只被线程 A 访问，既然没有其他的线程来竞争，每次都要获取锁岂不是浪费资源？所以这种情况下线程 A 就会自动进入偏向锁的状态。
+后续线程 A 再次访问同步代码时，不需要做任何的 check，直接执行（对该线程的「偏爱」），这样降低了获取锁的代价，提升了效率。
+
+自旋锁：
+
+但是，一旦有第二个线程参与竞争，就会立即膨胀为轻量级锁。企图抢占的线程一开始会使用自旋的方式去尝试获取锁。
+如果循环几次，其他的线程释放了锁，就不需要进行用户态到内核态的切换。虽然如此，但自旋需要占用很多 CPU 的资源（自行理解汽车空档疯狂踩油门）。
+
+如果另一个线程 一直不释放锁，难道它就在这一直空转下去吗？
+
+当然不可能，JDK 1.7 之前是普通自旋，会设定一个最大的自旋次数，默认是 10 次，超过这个阈值就停止自旋。
+JDK 1.7 之后，引入了适应性自旋。简单来说就是：这次自旋获取到锁了，自旋的次数就会增加；这次自旋没拿到锁，自旋的次数就会减少。
+
+重量级锁
+
+上面提到，试图抢占的线程自旋达到阈值，就会停止自旋，那么此时锁就会膨胀成重量级锁。
+当其膨胀成重量级锁后，其他竞争的线程进来就不会自旋了，而是直接阻塞等待，并且 Mark Word 中的内容会变成一个监视器（monitor）对象，用来统一管理排队的线程。
+ 
 ##### ReentrantLock底层实现原理
+AQS：
+  AbstractQueuedSynchronizer的缩写，这个是个内部实现了两个队列的抽象类，分别是同步队列和条件队列。
+  其中同步队列是一个双向链表，里面储存的是处于等待状态的线程，正在排队等待唤醒去获取锁，而条件队列是一个单向链表，里面储存的也是处于等待状态的线程，
+  只不过这些线程唤醒的结果是加入到了同步队列的队尾，AQS所做的就是管理这两个队列里面线程之间的等待状态-唤醒的工作。
+  在同步队列中，还存在2中模式，分别是独占模式和共享模式，这两种模式的区别就在于AQS在唤醒线程节点的时候是不是传递唤醒，这两种模式分别对应独占锁和共享锁。
+  
+AQS是一个抽象类，所以不能直接实例化，当我们需要实现一个自定义锁的时候可以去继承AQS然后重写获取锁的方式和释放锁的方式还有管理state，
+而ReentrantLock就是通过重写了AQS的tryAcquire和tryRelease方法实现的lock和unlock。
 
+非公平锁的实现原理：
 
+lock方法调用CAS方法设置state的值，如果state等于期望值0(代表锁没有被占用)，那么就将state更新为1(代表该线程获取锁成功)，
+然后执行setExclusiveOwnerThread方法直接将该线程设置成锁的所有者。如果CAS设置state的值失败，即state不等于0，代表锁正在被占领着，则执行acquire(1)，即下面的步骤。
+
+ nonFairTryAcquire方法首先调用getState方法获取state的值，如果state的值为0(之前占领锁的线程刚好释放了锁)，
+ 那么用CAS设置state的值，设置成功则将该线程设置成锁的所有者，并且返回true。如果state的值不为0，
+ 那就调用getExclusiveOwnerThread方法查看占用锁的线程是不是自己，如果是的话那就直接将state + 1，然后返回true。
+ 如果state不为0且锁的所有者又不是自己，那就返回false，然后线程会进入到同步队列中。
+ 
+ tryRelease锁的释放
+ 
+ 判断当前线程是不是锁的所有者，如果是则进行步骤2，如果不是则抛出异常。
+ 判断此次释放锁后state的值是否为0，如果是则代表锁有没有重入，然后将锁的所有者设置成null且返回true，然后执行步骤3，如果不是则代表锁发生了重入执行步骤4。
+ 现在锁已经释放完，即state=0，唤醒同步队列中的后继节点进行锁的获取。
+ 锁还没有释放完，即state!=0，不唤醒同步队列。
+
+公平锁的实现原理：
+
+  lock方法获取锁
+  
+  1.获取状态的state的值，如果state=0即代表锁没有被其它线程占用(但是并不代表同步队列没有线程在等待)，执行步骤2。如果state!=0则代表锁正在被其它线程占用，执行步骤3。
+  2.判断同步队列是否存在线程(节点)，如果不存在则直接将锁的所有者设置成当前线程，且更新状态state，然后返回true。
+  3.判断锁的所有者是不是当前线程，如果是则更新状态state的值，然后返回true，如果不是，那么返回false，即线程会被加入到同步队列中
+  
+  锁的释放与非公平锁的过程一样。
+
+  公平锁：每个线程获取锁的顺序是按照线程访问锁的先后顺序获取的，最先访问的线程最先获取到锁。
+  公平锁的优点是按序分配资源，不会出现线程饿死的情况，缺点是按序唤醒线程的开销大，执行性能不高
+  
+  非公平锁：每个线程获取锁的顺序是随机的，并不会遵循先来后得的规则，所以线程都会竞争获取锁，并且由于当前线程比较活跃，所以总是会获取到锁。
+  优点是执行效率高，缺点是资源分配随机性强，可能出现线程饿死的情况
 
 
 ##### java死锁如何避免
@@ -124,3 +187,164 @@ ConcurrentModificationException：在一个线程正在遍历HashMap的同时，
 ##### ThreadLocal的使用场景
 用来实现相同线程数据共享不同的线程数据隔离，但是注意，由于ThreadLocal底层使用的是ThreadLocalMap,这个Map的key是弱引用，value是强引用，生命周期与Thread相同，
 所以只有在Thread退出后，value的强引用链条才会断掉，如果当前线程不结束，则无法被回收，造成泄露。所以使用ThreadLocal需要及时remove否则会引起内存泄露
+
+
+##### 线程池是什么，以及优点
+线程池（Thread Pool）是一种基于池化思想管理线程的工具，经常出现在多线程服务器中，如MySQL。
+
+线程过多会带来额外的开销，其中包括创建销毁线程的开销、调度线程的开销等等，同时也降低了计算机的整体性能。
+线程池维护多个线程，等待监督管理者分配可并发执行的任务。这种做法，一方面避免了处理任务时创建销毁线程开销的代价，另一方面避免了线程数量膨胀导致的过分调度问题，保证了对内核的充分利用。
+
+而本文描述线程池是JDK中提供的ThreadPoolExecutor类。
+
+当然，使用线程池可以带来一系列好处：
+
+降低资源消耗：通过池化技术重复利用已创建的线程，降低线程创建和销毁造成的损耗。
+提高响应速度：任务到达时，无需等待线程创建即可立即执行。
+提高线程的可管理性：线程是稀缺资源，如果无限制创建，不仅会消耗系统资源，还会因为线程的不合理分布导致资源调度失衡，降低系统的稳定性。使用线程池可以进行统一的分配、调优和监控。
+提供更多更强大的功能：线程池具备可拓展性，允许开发人员向其中增加更多的功能。比如延时定时线程池ScheduledThreadPoolExecutor，就允许任务延期执行或定期执行。
+
+ 
+ ##### 线程池ThreadPoolExecutor核心方法execute()原理源码分析
+ 
+ 1. 构造方法
+ 首先解释一下各个参数：
+ 
+ ①corePoolSize：核心线程数 - 线程中长期存活的线程数
+
+  使用Runtime.getRuntime().availableProcessors()可以获取当前可用的处理器数量
+ 
+ ②maximumPoolSize：最大线程数(最大线程数只限制了下限，没有限制上限，但是上限也有限制并不能达到Integer.MAX_VALUE，下文分析)，通过该下限限制可以发现最大线程最少有1个
+ 
+ ③keepAliveTime:当前线程数>核心线程数时，允许超过核心线程数的这些线程等待任务的最大时间
+ 
+ ④unit：③的时间单位
+ 
+   TimeUnit.DAYS：天
+   TimeUnit.HOURS：小时
+   TimeUnit.MINUTES：分
+   TimeUnit.SECONDS：秒
+   TimeUnit.MILLISECONDS：毫秒
+   TimeUnit.MICROSECONDS：微妙
+   
+ ⑤workQueue：用来存放任务的队列
+ 
+   一个阻塞队列，用来存储线程池等待执行的任务，均为线程安全，它包含以下 7 种类型：
+   
+   ArrayBlockingQueue：一个由数组结构组成的有界阻塞队列。
+   LinkedBlockingQueue：一个由链表结构组成的有界阻塞队列，默认使用。
+   SynchronousQueue：一个不存储元素的阻塞队列，即直接提交给线程不保持它们。
+   PriorityBlockingQueue：一个支持优先级排序的无界阻塞队列。
+   DelayQueue：一个使用优先级队列实现的无界阻塞队列，只有在延迟期满时才能从中提取元素。
+   LinkedTransferQueue：一个由链表结构组成的无界阻塞队列。与SynchronousQueue类似，还含有非阻塞方法。
+   LinkedBlockingDeque：一个由链表结构组成的双向阻塞队列。
+   较常用的是 LinkedBlockingQueue 和 Synchronous，线程池的排队策略与 BlockingQueue 有关。
+ 
+ ⑥threadFactory：用来创建线程池中线程的工厂类(默认使用的默认提供的共厂类，通过源码可以了解到该工厂创建的线程是非守护线程并且优先级为5)
+ 
+ ⑦handler：拒绝服务的对象，提供拒绝服务功能
+   
+   触发拒绝策略来处理新提交的任务。以下是几种常见的拒绝策略：
+   
+   AbortPolicy（默认）：抛出RejectedExecutionException异常，表示无法处理新任务。
+   
+   CallerRunsPolicy：将任务退回给调用者，如果线程池的执行器已关闭，则直接丢弃任务。
+   
+   DiscardOldestPolicy：丢弃工作队列中最旧的任务，然后尝试提交新任务。
+   
+   DiscardPolicy：默默地丢弃无法处理的任务，不提供任何反馈。
+   
+   这些拒绝策略可以通过ThreadPoolExecutor类的构造方法或setRejectedExecutionHandler()方法进行设置。在选择拒绝策略时，需要根据具体的业务场景和需求来决定如何处理无法接受的任务。
+
+ 
+ 2.execute()方法分析前提知识
+ ①首先要知道线程池中有线程池的自身状态，以及线程池中运行线程的个数，程池很巧妙的将这两个信息保存在一个32bit的int类型变量中，并且这个变量 是线程安全的AtomicInteger对象，其中使用高3位来保存线程池的自身状态，低29位保存线程池中工作线程的个数。
+ 从源码可以看出，该方法主要分为三步分别如下：
+ ```
+         if (command == null)
+             throw new NullPointerException();
+         int c = ctl.get();
+         if (workerCountOf(c) < corePoolSize) {
+             if (addWorker(command, true))
+                 return;
+             c = ctl.get();
+         }
+         if (isRunning(c) && workQueue.offer(command)) {
+             int recheck = ctl.get();
+             if (! isRunning(recheck) && remove(command))
+                 reject(command);
+             else if (workerCountOf(recheck) == 0)
+                 addWorker(null, false);
+         }
+         else if (!addWorker(command, false))
+             reject(command);
+```
+ 
+ 
+ 首先获取记录线程池状态以及工作线程数的int变量值c
+ 
+ 第一步：根据c计算出工作线程数，如果线程数<核心线程数，创建一个核心线程并立刻处理该次提交的任务，然后该方法结束。
+ 
+ 第二步：如果第一步条件不成立(工作线程>=核心线程||创建核心线程因为某种原因失败)，判断线程池是否是运行状态，
+ 如果是运行状态然后把该次提交的任务放在任务队列中_延时处理_，然后再重新获取这个c再检查一次线程池的状态是否是运行状态，
+ 如果不是运行状态就把刚才添加的任务从任务队列中移除，把这个移除的任务交给构造方法传入的拒绝服务对象，走拒绝服务逻辑。
+ 如果是运行状态然后检查线程池是否还有工作线程数，如果没有则创建一个线程保证，至少有一个线程消费该任务队列。
+ 
+ 第三步：如果前两步不成立(线程池不是运行状态||任务队列添加满了)，然后添加一个非核心线程立刻处理该次提交的任务(早于大多数还在队列中等待的任务)，
+ 如果添加失败，则会把该次任务交给拒绝服务对象，走拒绝服务逻辑。
+ 
+ 总结：如果核心线程<用户输入的核心线程数则添加核心线程，并用该线程处理该任务，否则把该任务添加到任务队列中等待线程处理，
+ 如果核心线程队列满了，则添加非核心线程，并处理该次提交的任务，如果都不满足，则拒绝服务该任务。
+
+创建线程池举例：
+```
+/**  线程池配置
+ * @version V1.0
+ */
+public class ExecutorConfig {
+    private static int maxPoolSize = Runtime.getRuntime().availableProcessors();
+    private volatile static ExecutorService executorService;
+    public static ExecutorService getThreadPool() {
+        if (executorService == null){
+            synchronized (ExecutorConfig.class){
+                if (executorService == null){
+                    executorService =  newThreadPool();
+                }
+            }
+        }
+        return executorService;
+    }
+
+    private static  ExecutorService newThreadPool(){
+        int queueSize = 500;
+        int corePool = Math.min(5, maxPoolSize);
+        return new ThreadPoolExecutor(corePool, maxPoolSize, 10000L, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(queueSize),new ThreadPoolExecutor.AbortPolicy());
+    }
+    private ExecutorConfig(){}
+}
+```
+##### 线程池的执行流程
+
+创建线程池：通过ThreadPoolExecutor类或Executors工厂类创建一个线程池，指定线程池的核心线程数、最大线程数、线程存活时间、任务队列等参数。
+
+提交任务：将任务（实现了Runnable或Callable接口的任务）提交给线程池执行，可以使用execute()方法或submit()方法提交任务。
+
+任务执行：线程池根据内部的线程管理策略，执行提交的任务。如果当前线程池中的线程数量小于核心线程数，则创建新的线程来执行任务；
+如果当前线程池中的线程数量已经达到核心线程数，并且任务队列未满，则将任务放入任务队列；
+如果任务队列已满，但是线程数未达到最大线程数，则创建新的线程来执行任务；
+如果线程池中的线程数已经达到最大线程数，则根据指定的拒绝策略来处理无法执行的任务。
+
+任务执行完成：任务执行完成后，线程池会将线程归还到线程池中以供下次使用。
+
+关闭线程池：当不再需要线程池时，需要调用shutdown()或shutdownNow()方法来关闭线程池，释放线程池所占用的资源。
+
+##### 线程池有哪些状态
+
+RUNNING（运行）：线程池处于 RUNNING 状态时，可以接受新任务，并处理阻塞队列中的任务。当且仅当线程池处于 RUNNING 状态时，才能接受新任务。
+
+SHUTDOWN（关闭）：线程池进入 SHUTDOWN 状态后，不再接受新任务，但会继续执行阻塞队列中的任务。可以调用线程池的 shutdown() 方法将线程池转换为 SHUTDOWN 状态。
+
+STOP（停止）：线程池进入 STOP 状态后，不再接受新任务，不再执行阻塞队列中的任务，并尝试中断正在执行的任务。可以调用线程池的 shutdownNow() 方法将线程池转换为 STOP 状态。
+
+TERMINATED（终止）：线程池进入 TERMINATED 状态后，所有的任务都已经完成，线程池已经关闭。可以通过线程池的 isTerminated() 方法来判断线程池是否已经终止。

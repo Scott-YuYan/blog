@@ -65,9 +65,11 @@ Spring 框架是一个轻量级的、开源的框架，提供了大量的功能�
  
  注意： 缺省的Spring bean 的作用域是Singleton。使用 prototype 作用域需要慎重的思考，因为频繁创建和销毁 bean 会带来很大的性能开销。
  
- 
- 
  ##### spring 的事务隔离？
+ 
+ ```
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_UNCOMMITTED)
+```
  
  spring 有五大隔离级别，默认值为 ISOLATION_DEFAULT（使用数据库的设置），其他四个隔离级别和数据库的隔离级别一致：
  
@@ -80,6 +82,8 @@ Spring 框架是一个轻量级的、开源的框架，提供了大量的功能�
  ISOLATION_REPEATABLE_READ：可重复读，保证多次读取同一个数据时，其值都和事务开始时候的内容是一致，禁止读取到别的事务未提交的数据（会造成幻读），MySQL 的默认级别；
  
  ISOLATION_SERIALIZABLE：序列化，代价最高最可靠的隔离级别，该隔离级别能防止脏读、不可重复读、幻读。
+
+##### 脏读、幻读、不可重复读？
  
  脏读（Dirty Read）：脏读指的是一个事务读取了另一个事务还未提交的数据。如果该事务回滚，那么读取到的数据就是无效的，因此称之为“脏读”。
  
@@ -87,6 +91,42 @@ Spring 框架是一个轻量级的、开源的框架，提供了大量的功能�
  
  幻读（Phantom Read）：幻读指的是在同一个事务中，多次执行同一个查询，但得到的结果集不一致。幻读与不可重复读的区别在于，幻读是由于另一个事务插入或删除数据导致的，而不是修改数据。
  
+ ##### 如果Spring设置的隔离级别与数据库设置的隔离级别不同，会怎么样？
+ 如果Spring使用的是默认的隔离级别，那么会以数据库的为准，否则以Spring为准。
+
+ ##### Spring支持了7种传播机制，分别为？
+ 
+  REQUIRED（默认值）：如果当前方法已经运行在一个事务中，则加入该事务；否则新建一个事务，并在该方法执行期间一直使用该事务。
+     
+  SUPPORTS：如果当前方法正在一个事务中运行，则加入该事务；否则以非事务性的方式继续运行。
+  
+  MANDATORY：如果当前方法正在一个事务中运行，则加入该事务；否则抛出异常。
+  
+  REQUIRES_NEW：无论当前方法是否正在一个事务中运行，都将新开一个事务，并在该方法执行期间只使用该事务。
+  
+  NOT_SUPPORTED：以非事务性的方式运行，并挂起任何可能存在的事务。
+  
+  NEVER：以非事务性的方式运行，如果当前方法正在一个事务中运行，抛出异常。
+  
+  NESTED：如果当前方法正在一个事务中运行，则在该事务的嵌套事务中执行；否则则与 REQUIRED 行为相同。
+  
+  需要注意的是，在使用嵌套事务（NESTED）时，如果外层事务回滚，则内层嵌套事务也会回滚；而内层事务的回滚不会影响外层事务的状态。
+ 
+  上面不支持事务的传播机制为：PROPAGATION_SUPPORTS，PROPAGATION_NOT_SUPPORTED，PROPAGATION_NEVER。如果配置了这三种传播方式的话，在发生异常的时候，事务是不会回滚的。
+    
+    
+    嵌套事务：嵌套事务
+         
+    上面是我想同时回滚UserService与UserService1。但是也会有这种场景只想回滚UserService1中报错的数据库操作，不影响主逻辑UserService中的数据落库。
+    
+    有两种方式可以实现上述逻辑：
+    
+    1.直接在UserService1内的整个方法用try/catch包住
+    
+    2.在UserService1使用Propagation.REQUIRES_NEW传播机制
+    ```
+        @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRES_NEW)
+    ```
  
  ##### SpringAOP示例：
  
@@ -197,35 +237,6 @@ Spring 框架是一个轻量级的、开源的框架，提供了大量的功能�
    
    通过实现HandlerInterceptor接口，并重写这三个方法，可以自定义拦截器的行为，并在配置文件中进行注册和配置，从而实现对请求的拦截和处理。
    
-   ##### Spring支持了7种传播机制，分别为：
-   
-   下面是 Spring 事务的传播机制：
-   
-   ```
-   REQUIRED（默认值）：如果当前方法已经运行在一个事务中，则加入该事务；否则新建一个事务，并在该方法执行期间一直使用该事务。
-   SUPPORTS：如果当前方法正在一个事务中运行，则加入该事务；否则以非事务性的方式继续运行。
-   MANDATORY：如果当前方法正在一个事务中运行，则加入该事务；否则抛出异常。
-   REQUIRES_NEW：无论当前方法是否正在一个事务中运行，都将新开一个事务，并在该方法执行期间只使用该事务。
-   NOT_SUPPORTED：以非事务性的方式运行，并挂起任何可能存在的事务。
-   NEVER：以非事务性的方式运行，并抛出异常，如果当前方法正在一个事务中运行。
-   NESTED：如果当前方法正在一个事务中运行，则在该事务的嵌套事务中执行；否则则与 REQUIRED 行为相同。
-   需要注意的是，在使用嵌套事务（NESTED）时，如果外层事务回滚，则内层嵌套事务也会回滚；而内层事务的回滚不会影响外层事务的状态。
-   ```
-   上面不支持事务的传播机制为：PROPAGATION_SUPPORTS，PROPAGATION_NOT_SUPPORTED，PROPAGATION_NEVER。如果配置了这三种传播方式的话，在发生异常的时候，事务是不会回滚的。
-   
-   
-   嵌套事务：嵌套事务
-        
-   上面是我想同时回滚UserService与UserService1。但是也会有这种场景只想回滚UserService1中报错的数据库操作，不影响主逻辑UserService中的数据落库。
-   
-   有两种方式可以实现上述逻辑：
-   
-   1.直接在UserService1内的整个方法用try/catch包住
-   
-   2.在UserService1使用Propagation.REQUIRES_NEW传播机制
-   ```
-       @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRES_NEW)
-   ```
 
 ##### Spring bean的线程安全问题
 
@@ -422,7 +433,8 @@ public void doSomething() {
 
 
 5. 事务只对受检查的异常起作用
-默认情况下，@Transactional 注解只对受检查的异常回滚事务，而不对未受检查的异常（例如 IOException）回滚事务。因此，应该在方法上声明 throws Exception，以便将所有异常都视为受检查的异常。
+默认情况下，@Transactional 注解只对受检查的异常回滚事务，而不对未受检查的异常（例如 IOException）回滚事务。
+因此，应该在方法上声明 throws Exception，以便将所有异常都视为受检查的异常。
 
 示例代码：
 ```
@@ -443,10 +455,10 @@ public final void doSomething() {
 }
 ```
 
-7、
-将注解标注在接口方法上
+7、将注解标注在接口方法上
 
-@Transactional是支持标注在方法与类上的。一旦标注在接口上，对应接口实现类的代理方式如果是CGLIB，将通过生成子类的方式生成目标类的代理，将无法解析到@Transactional，从而事务失效。
+@Transactional是支持标注在方法与类上的。一旦标注在接口上，对应接口实现类的代理方式如果是CGLIB，
+将通过生成子类的方式生成目标类的代理，将无法解析到@Transactional，从而事务失效。
 
   
 8、如果一个事务嵌套在另一个事务中，则内部事务可能会被忽略
@@ -492,8 +504,6 @@ public JtaTransactionManager transactionManager() {
    这个问题出现的概率极其小，因为Mysql5之后默认情况下是使用innodb存储引擎了。
    
    但如果配置错误或者是历史项目，发现事务怎么配都不生效的时候，记得看看存储引擎本身是否支持事务。
-  
- 
 
 ##### Spring MVC 系列之拦截器 Interceptor
 
@@ -509,6 +519,107 @@ afterCompletion：视图渲染后执行，不管处理器是否抛出异常，�
 对于 xml 配置来说，Spring 将记录 bean 声明的顺序，先声明的拦截器将排在前面。
 对于注解配置来说，由于通过反射读取方法无法保证顺序，因此需要在方法上添加@Order注解指定 bean 的声明顺序。
 对应API配置来说，拦截器的顺序并非和添加顺序完全保持一致，为了控制先后顺序，需要自定义的拦截器实现Ordered接口。
+
+##### @Autowired注解与@Resource注解不同
+
+@Autowired是Spring中提供的注解,只按照byType注入。如果我们想使用按照名称（byName）来装配，可以结合@Qualifier注解一起使用
+
+@Resource是JSR-250中提供的注解,默认按照ByName自动注入，如果使用name属性，则使用byName的自动注入策略，而使用type属性时则使用byType自动注入策略。
+如果既不制定name也不制定type属性，这时将通过反射机制使用byName自动注入策略。
+
+
+##### 使用＠Autowired注解时，如果一个类可以有多种类型，如何解决
+      
+1.使用@Qualifier注解：可以和@Autowired一起使用，用于指定具体要注入的bean名称。在@Autowired注解中使用@Qualifier注解，指定要注入的bean的名称，这样就可以明确指定要注入的bean实例。
+```
+@Autowired
+@Qualifier("beanName")
+private BeanClass bean;
+```
+
+2.使用@Primary注解：可以在多个bean实例中使用@Primary注解，用于指定首选的bean。当存在多个同类型的bean实例时，被标记为@Primary的bean将被优先选择进行注入。
+```
+@Primary
+@Bean
+public BeanClass primaryBean() {
+   // bean的定义
+}
+```
+
+3.使用List或Map集合注入：可以将所有同类型的bean实例注入到一个List或Map集合中。Spring会自动将所有符合类型的bean注入到集合中，然后可以通过遍历集合来使用不同的bean实例。
+```
+@Autowired
+private List<BeanClass> beanList;
+
+@Autowired
+private Map<String, BeanClass> beanMap;
+```
+
+##### Spring是如何通过三级缓存解决循环依赖的
+
+我们知道，Spring Bean的加载过程大致可以分为实例化，属性注入，初始化(初始化前的方法，初始化方法，初始化后方法)，销毁的过程。
+
+单例模式下，在第一次使用 Bean 时，会创建一个 Bean 对象，并放入 IoC 容器的缓存池中。后续再使用该 Bean 对象时，会直接从缓存池中获取。
+
+```
+/** Cache of singleton objects: bean name --> bean instance */
+/** 一级缓存：用于存放完全初始化好的 bean **/
+private final Map<String, Object> singletonObjects = new ConcurrentHashMap<String, Object>(256);
+ 
+/** Cache of early singleton objects: bean name --> bean instance */
+/** 二级缓存：存放原始的 bean 对象（尚未填充属性），用于解决循环依赖 */
+private final Map<String, Object> earlySingletonObjects = new HashMap<String, Object>(16);
+
+/** Cache of singleton factories: bean name --> ObjectFactory */
+/** 三级级缓存：存放 bean 工厂对象，用于解决循环依赖 */
+private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<String, ObjectFactory<?>>(16);
+```
+缓存执行的过程：
+```
+protected Object getSingleton(String beanName, boolean allowEarlyReference) {
+  // Spring首先从singletonObjects（一级缓存）中尝试获取
+  Object singletonObject = this.singletonObjects.get(beanName);
+  // 若是获取不到而且对象在建立中，则尝试从earlySingletonObjects(二级缓存)中获取
+  if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
+    synchronized (this.singletonObjects) {
+        singletonObject = this.earlySingletonObjects.get(beanName);
+        if (singletonObject == null && allowEarlyReference) {
+          ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
+          if (singletonFactory != null) {
+            //若是仍是获取不到而且允许从singletonFactories经过getObject获取，则经过singletonFactory.getObject()(三级缓存)获取
+              singletonObject = singletonFactory.getObject();
+              //若是获取到了则将singletonObject放入到earlySingletonObjects,也就是将三级缓存提高到二级缓存中
+              this.earlySingletonObjects.put(beanName, singletonObject);
+              this.singletonFactories.remove(beanName);
+          }
+        }
+    }
+  }
+  return (singletonObject != NULL_OBJECT ? singletonObject : null);
+}
+```
+
+三级缓存只能解决单例bean的循环依赖，关于为什么不能解决构造器注入依赖？
+
+在对象已实例化后，会将对象存入三级缓存中。在调用对象的构造函数时，对象还未完成初始化，所以也就无法将对象存放到三级缓存中。
+在构造函数注入中，对象 A 需要在对象 B 的构造函数中完成初始化，对象 B 也需要在对象 A的构造函数中完成初始化。
+此时两个对象都不在三级缓存中，最终结果就是两个 Bean 都无法完成初始化，无法解决循环依赖问题。
+
+还有Spring 为什么不能解决多例的循环依赖问题
+多实例 Bean 是每次调用 getBean 都会创建一个新的 Bean 对象，该 Bean 对象并不能缓存。而 Spring 中循环依赖的解决正是通过缓存来实现的。
+
+##### 非单例Bean的循环依赖如何解决？
+对于构造器注入产生的循环依赖，可以使用 @Lazy 注解，延迟加载。
+对于多例 Bean 和 prototype 作用域产生的循环依赖，可以尝试改为单例 Bean。
+
+##### 为什么一定要三级缓存？
+
+二级缓存也是可以解决循环依赖的，如果 Spring 选择二级缓存来解决循环依赖的话，
+那么就意味着所有 Bean 都需要在实例化完成之后就立马为其创建代理，而 Spring 的设计原则是在 Bean 初始化完成之后才为其创建代理。
+
+##### servlet容器的生命周期
+创建Servlet容器->执行init方法->调用service方法->输出消息->destroy()
+
 
 
 
